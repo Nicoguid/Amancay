@@ -1,151 +1,150 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Product } from '@/lib/types';
-import { useStore } from '@/context/StoreContext';
-import { ShoppingBag, Check, CreditCard } from 'lucide-react';
+import { ShoppingBag, Check } from 'lucide-react';
+import type { Product } from '@/lib/types';
+import { useStore, priceRange } from '@/context/StoreContext';
+import { formatPrice } from '@/lib/storeConfig';
+import { ProductImage } from './ProductImage';
 
-export function ProductCard({ product }: { product: Product }) {
+const CATEGORY_LABEL: Record<Product['category'], string> = {
+  mates: 'Mates',
+  bombillas: 'Bombillas',
+  perfumes: 'Perfumes',
+};
+
+/** Una sola etiqueta por tarjeta, por prioridad. */
+function badgeFor(product: Product): { label: string; className: string } | null {
+  if (product.stock <= 0) return { label: 'Sin stock', className: 'bg-[var(--ink-secondary)] text-white' };
+  if (product.originalPrice && product.originalPrice > product.price) {
+    const pct = Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100);
+    return { label: `${pct} % off`, className: 'bg-[var(--amancay-wine)] text-white' };
+  }
+  if (product.isBestSeller) return { label: 'Más vendido', className: 'bg-[var(--amancay-emerald)] text-white' };
+  if (product.isNew) return { label: 'Nuevo', className: 'bg-white text-[var(--ink-primary)]' };
+  return null;
+}
+
+export function ProductCard({ product, headingLevel = 3 }: { product: Product; headingLevel?: 2 | 3 }) {
   const { addToCart } = useStore();
-  const [isAdded, setIsAdded] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'added' | 'no-stock'>('idle');
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
 
-  const hasDiscount = product.originalPrice && product.originalPrice > product.price;
-  const discountPercent = hasDiscount
-    ? Math.round(((product.originalPrice! - product.price) / product.originalPrice!) * 100)
-    : null;
+  const { min, max } = priceRange(product);
+  const hasDiscount = !!product.originalPrice && product.originalPrice > product.price;
+  const needsChoice = (product.variants?.length ?? 0) > 1;
+  const outOfStock = product.stock <= 0;
+  const badge = badgeFor(product);
+  const href = `/producto/${product.id}`;
+  const Heading = headingLevel === 2 ? 'h2' : 'h3';
 
-  const cuota3Galicia = Math.round(product.price / 3);
-
-  const handleQuickAdd = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const defaultVariant = product.variants && product.variants.length > 0 ? product.variants[0] : undefined;
-    addToCart(product, 1, defaultVariant);
-    setIsAdded(true);
-    setTimeout(() => setIsAdded(false), 2000);
+  const handleAdd = () => {
+    const added = addToCart(product, 1, product.variants?.[0]);
+    setStatus(added > 0 ? 'added' : 'no-stock');
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setStatus('idle'), 2500);
   };
 
   return (
-    <article className="group relative bg-[#ffffff] rounded-lg border border-[#e6dac6] transition-all duration-300 hover:border-[#a67c3f] hover:shadow-lg flex flex-col justify-between overflow-hidden font-sans">
-      <div>
-        {/* Image Box with Dual-Photo Hover Swap */}
-        <Link href={`/producto/${product.id}`} className="block relative aspect-[4/5] overflow-hidden bg-[#faf7f0]">
-          <img
-            src={product.images[0]}
-            alt={product.name}
-            className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500 ease-out"
+    <article className="group relative flex h-full flex-col overflow-hidden rounded-lg border border-[var(--amancay-border)] bg-white transition-[border-color,box-shadow] duration-300 hover:border-[var(--amancay-gold)] hover:shadow-lg">
+      <div className="relative aspect-[4/5] overflow-hidden bg-[var(--bg-page)]">
+        <ProductImage
+          src={product.images[0]}
+          alt=""
+          width={400}
+          height={500}
+          className="h-full w-full object-cover object-center transition-transform duration-500 ease-out group-hover:scale-105"
+        />
+        {product.images[1] && (
+          <ProductImage
+            src={product.images[1]}
+            alt=""
+            width={400}
+            height={500}
+            className="absolute inset-0 h-full w-full object-cover object-center opacity-0 transition-opacity duration-500 ease-out group-hover:opacity-100"
           />
-          {product.images[1] && (
-            <img
-              src={product.images[1]}
-              alt={product.name}
-              className="absolute inset-0 w-full h-full object-cover object-center opacity-0 group-hover:opacity-100 transition-opacity duration-500 ease-out"
-            />
-          )}
+        )}
+        {badge && (
+          <span className={`absolute left-2.5 top-2.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-xs ${badge.className}`}>
+            {badge.label}
+          </span>
+        )}
+      </div>
 
-          {/* Badges on Top */}
-          <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5 z-10">
-            {product.isBestSeller && (
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-[#0b3821] text-white shadow-xs">
-                Más Vendido
-              </span>
-            )}
-            {discountPercent && (
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-[#672d35] text-white shadow-xs">
-                {discountPercent}% OFF
-              </span>
-            )}
-            {product.isNew && (
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-[#a67c3f] text-white shadow-xs">
-                Nuevo Ingreso
-              </span>
-            )}
-          </div>
-        </Link>
+      <div className="flex flex-1 flex-col gap-1.5 p-4">
+        <p className="flex items-center justify-between gap-2 text-sm text-[var(--ink-muted)]">
+          <span className="truncate font-semibold text-[var(--ink-accent)]">{product.brand}</span>
+          <span className="shrink-0">{CATEGORY_LABEL[product.category]}</span>
+        </p>
 
-        {/* Content Box */}
-        <div className="p-4 space-y-1.5">
-          {/* Brand & Category */}
-          <div className="flex items-center justify-between text-xs text-[#5a524a]">
-            <span className="font-semibold uppercase tracking-wider text-[#a67c3f]">{product.brand}</span>
-            <span className="capitalize font-medium text-[#5a524a]">{product.category}</span>
-          </div>
-
-          {/* Product Name */}
-          <Link href={`/producto/${product.id}`} className="block">
-            <h3 className="font-display text-base sm:text-lg font-semibold text-[#1a1612] group-hover:text-[#a67c3f] transition-colors leading-snug line-clamp-2">
-              {product.name}
-            </h3>
+        <Heading className="font-display text-lg leading-snug text-[var(--ink-primary)]">
+          {/* El link cubre toda la tarjeta (una sola parada de Tab). */}
+          <Link href={href} className="line-clamp-2 after:absolute after:inset-0 after:content-[''] group-hover:text-[var(--ink-accent)]">
+            {product.name}
           </Link>
+        </Heading>
 
-          {/* Short description */}
-          {product.shortDescription && (
-            <p className="text-xs text-[#5a524a] line-clamp-2 leading-relaxed pt-0.5">
-              {product.shortDescription}
-            </p>
-          )}
+        {product.shortDescription && (
+          <p className="line-clamp-2 text-sm leading-relaxed text-[var(--ink-muted)]">{product.shortDescription}</p>
+        )}
 
-          {/* Variant Indicators */}
-          {product.variants && product.variants.length > 0 && (
-            <div className="flex flex-wrap gap-1 pt-1">
-              {product.variants.slice(0, 2).map((v) => (
-                <span key={v.id} className="text-[10px] px-2 py-0.5 rounded-full bg-[#faf7f0] border border-[#e6dac6] font-medium text-[#1a1612]">
-                  {v.name}
-                </span>
-              ))}
-              {product.variants.length > 2 && (
-                <span className="text-[10px] px-1.5 py-0.5 text-[#5a524a] font-medium">
-                  +{product.variants.length - 2} más
-                </span>
-              )}
-            </div>
-          )}
+        <div className="mt-auto border-t border-[var(--bg-subtle)] pt-3">
+          <p className="flex flex-wrap items-baseline gap-x-2">
+            <span className="font-display text-2xl tabular-nums text-[var(--ink-primary)]">
+              {min !== max && <span className="font-sans text-sm text-[var(--ink-muted)]">Desde </span>}
+              {formatPrice(min)}
+            </span>
+            {hasDiscount && (
+              <span className="text-sm tabular-nums text-[var(--ink-muted)] line-through">
+                <span className="sr-only">Antes </span>
+                {formatPrice(product.originalPrice!)}
+              </span>
+            )}
+          </p>
         </div>
       </div>
 
-      {/* Pricing & CTA */}
-      <div className="p-4 pt-0 space-y-3">
-        {/* Price row */}
-        <div className="border-t border-[#f4efe6] pt-2.5">
-          <div className="flex items-baseline gap-2">
-            <span className="font-display text-xl sm:text-2xl font-bold text-[#1a1612] tabular-nums">
-              ${product.price.toLocaleString('es-AR')}
-            </span>
-            {hasDiscount && (
-              <span className="text-xs line-through text-[#5a524a]/70 tabular-nums">
-                ${product.originalPrice!.toLocaleString('es-AR')}
-              </span>
+      <div className="relative z-10 px-4 pb-4">
+        {outOfStock ? (
+          <p className="flex min-h-11 items-center justify-center rounded-full bg-[var(--bg-subtle)] text-sm font-semibold text-[var(--ink-muted)]">
+            Sin stock por ahora
+          </p>
+        ) : needsChoice ? (
+          <Link
+            href={href}
+            tabIndex={-1}
+            aria-hidden="true"
+            className="tap-interactive flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-[var(--ink-primary)] px-3 text-sm font-semibold text-[var(--ink-primary)] hover:bg-[var(--ink-primary)] hover:text-white"
+          >
+            Elegir opción
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={handleAdd}
+            className={`tap-interactive flex min-h-11 w-full items-center justify-center gap-2 rounded-full px-3 text-sm font-semibold text-white shadow-xs ${
+              status === 'added' ? 'bg-[var(--amancay-emerald)]' : 'bg-[var(--ink-primary)] hover:bg-[var(--ink-secondary)]'
+            }`}
+          >
+            {status === 'added' ? (
+              <Check className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <ShoppingBag className="h-4 w-4 text-[var(--amancay-gold-light)]" aria-hidden="true" />
             )}
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-[#0b3821] font-semibold mt-0.5">
-            <CreditCard className="w-3.5 h-3.5 text-[#a67c3f]" />
-            <span>3 cuotas Galicia de ${cuota3Galicia.toLocaleString('es-AR')} (Noviembre)</span>
-          </div>
-        </div>
-
-        {/* Quick Add Button */}
-        <button
-          onClick={handleQuickAdd}
-          className={`tap-interactive w-full py-2.5 px-3 rounded-full text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
-            isAdded
-              ? 'bg-[#0b3821] text-white shadow-xs'
-              : 'bg-[#1a1612] text-white hover:bg-[#a67c3f] shadow-xs'
-          }`}
-          aria-label={`Agregar ${product.name} a la bolsa`}
-        >
-          {isAdded ? (
-            <>
-              <Check className="w-4 h-4 text-[#25d366]" />
-              <span>¡Agregado al Carrito!</span>
-            </>
-          ) : (
-            <>
-              <ShoppingBag className="w-4 h-4 text-[#c5a059]" />
-              <span>Agregar al Carrito</span>
-            </>
-          )}
-        </button>
+            <span>
+              {status === 'added' ? 'Agregado al carrito' : 'Agregar al carrito'}
+              <span className="sr-only">: {product.name}</span>
+            </span>
+          </button>
+        )}
+        <p className="sr-only" role="status">
+          {status === 'added' ? `${product.name} agregado al carrito.` : status === 'no-stock' ? 'No hay más unidades disponibles.' : ''}
+        </p>
+        {status === 'no-stock' && <p className="mt-2 text-center text-sm text-[var(--amancay-wine)]">No hay más unidades disponibles.</p>}
       </div>
     </article>
   );

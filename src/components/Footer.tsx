@@ -1,289 +1,204 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
-import { MapPin, Phone, Mail, Clock, MessageCircle, ShieldCheck, ArrowUpRight, ChevronUp, FileText, CreditCard, Truck, Bike } from 'lucide-react';
+import { MapPin, Phone, Mail, Clock, MessageCircle, ChevronUp } from 'lucide-react';
+import { Dialog } from './Dialog';
+import { STORE, whatsappUrl } from '@/lib/storeConfig';
 
 export function Footer() {
   const [isArrepentimientoOpen, setIsArrepentimientoOpen] = useState(false);
   const [orderRef, setOrderRef] = useState('');
   const [emailRef, setEmailRef] = useState('');
-  const [arrepentimientoSent, setArrepentimientoSent] = useState(false);
+  const [requestCode, setRequestCode] = useState<string | null>(null);
 
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const closeArrepentimiento = () => {
+    setIsArrepentimientoOpen(false);
+    setRequestCode(null);
+    setOrderRef('');
+    setEmailRef('');
   };
 
   const handleArrepentimientoSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (orderRef.trim() && emailRef.trim()) {
-      setArrepentimientoSent(true);
-    }
+    // Demo: en producción esto se envía al backend y se manda el código por email.
+    setRequestCode(`ARR-${String(Date.now()).slice(-6)}`);
   };
 
   return (
-    <footer className="w-full bg-[#14110e] text-[#faf7f0] pt-16 pb-12 font-sans border-t border-[#2c2520] overflow-x-clip">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
-        {/* Top Grid: 4 Columns */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 pb-14 border-b border-[#2c2520] text-sm text-[#faf7f0]/80">
-          
-          {/* Column 1: Brand Manifesto & Local Presence */}
-          <div className="lg:col-span-4 space-y-4">
-            <div className="flex items-center gap-2.5">
-              <span className="font-display text-3xl font-bold text-white tracking-tight">
-                AMANCAY
-              </span>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-[#2c2520] text-[#c5a059] border border-[#a67c3f]/40">
-                Almagro · CABA
-              </span>
-            </div>
-            <p className="text-[#faf7f0]/75 text-sm leading-relaxed max-w-sm">
-              Especialistas en mates criollos de autor, virolas de alpaca cincelada y perfumería fina sobre Avenida Corrientes. Tradición de mostrador, garantía de oficio y asesoramiento genuino.
+    <footer className="focus-on-dark w-full border-t border-[var(--ink-secondary)] bg-[#14110e] pb-12 pt-16 font-sans text-[var(--bg-page)]">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 gap-10 border-b border-[var(--ink-secondary)] pb-12 text-[var(--bg-page)]/85 md:grid-cols-2 lg:grid-cols-12">
+          <div className="space-y-4 lg:col-span-4">
+            <p className="font-display text-3xl text-white">Amancay</p>
+            <p className="max-w-sm leading-relaxed">
+              Perfumería, mates y bombillas sobre Av. Corrientes, en Almagro. Comprá online y retirá en el local.
             </p>
-            <div className="pt-2 flex items-center gap-3 text-xs text-[#faf7f0]/60">
-              <span className="flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-[#a67c3f]" />
-                Av. Corrientes 3666, Almagro
+            <p className="flex items-start gap-2">
+              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[var(--amancay-gold-light)]" aria-hidden="true" />
+              <span>
+                {STORE.address}, {STORE.neighborhood}
+                <br />
+                {STORE.transit}
               </span>
-              <span>·</span>
-              <span>Subte B Carlos Gardel</span>
-            </div>
+            </p>
           </div>
 
-          {/* Column 2: Categorías Exclusivas */}
-          <div className="lg:col-span-3 space-y-3">
-            <span className="font-display text-base font-semibold text-[#c5a059] block tracking-wide">
-              Categorías
-            </span>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link href="/catalogo?rubro=mates" className="hover:text-white transition-colors flex items-center justify-between group">
-                  <span>Mates Imperiales & Camioneros</span>
-                  <ArrowUpRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-[#a67c3f]" />
-                </Link>
-              </li>
-              <li>
-                <Link href="/catalogo?rubro=bombillas" className="hover:text-white transition-colors flex items-center justify-between group">
-                  <span>Bombillas de Alpaca & Acero 304</span>
-                  <ArrowUpRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-[#a67c3f]" />
-                </Link>
-              </li>
-              <li>
-                <Link href="/catalogo?rubro=perfumes" className="hover:text-white transition-colors flex items-center justify-between group">
-                  <span>Perfumería Fina & Autor</span>
-                  <ArrowUpRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-[#a67c3f]" />
-                </Link>
-              </li>
-              <li>
-                <Link href="/catalogo" className="hover:text-white transition-colors flex items-center justify-between group text-[#a67c3f]">
-                  <span>Catálogo Completo</span>
-                  <ArrowUpRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </Link>
-              </li>
-              <li>
-                <Link href="/#como-comprar" className="text-[#c5a059] font-bold hover:underline flex items-center gap-1.5">
-                  <CreditCard className="w-3.5 h-3.5" />
-                  <span>3 Cuotas Banco Galicia (Noviembre)</span>
-                </Link>
-              </li>
+          <nav aria-labelledby="footer-catalogo" className="space-y-3 lg:col-span-3">
+            <h2 id="footer-catalogo" className="font-display text-lg text-[var(--amancay-gold-light)]">
+              Catálogo
+            </h2>
+            <ul className="space-y-1">
+              {[
+                { href: '/catalogo?rubro=mates', label: 'Mates' },
+                { href: '/catalogo?rubro=bombillas', label: 'Bombillas' },
+                { href: '/catalogo?rubro=perfumes', label: 'Perfumes' },
+                { href: '/catalogo', label: 'Todo el catálogo' },
+                { href: '/#como-comprar', label: 'Retiro y envíos' },
+              ].map((link) => (
+                <li key={link.href}>
+                  <Link href={link.href} className="inline-flex min-h-10 items-center hover:text-white hover:underline">
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
             </ul>
-          </div>
+          </nav>
 
-          {/* Column 3: Información & Horarios */}
-          <div className="lg:col-span-3 space-y-3">
-            <span className="font-display text-base font-semibold text-[#c5a059] block tracking-wide">
-              Atención & Retiros
-            </span>
-            <div className="space-y-2 text-sm text-[#faf7f0]/75">
-              <div className="flex items-start gap-2">
-                <Clock className="w-4 h-4 text-[#a67c3f] shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-white font-medium">Lunes a Viernes: 09:30 a 20:00 hs</p>
-                  <p className="text-xs">Sábados: 10:00 a 14:00 hs</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 pt-1">
-                <Phone className="w-4 h-4 text-[#a67c3f] shrink-0" />
-                <span className="text-white">+54 9 11 3674-0676</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Mail className="w-4 h-4 text-[#a67c3f] shrink-0" />
-                <span>mostrador@amancay.com.ar</span>
-              </div>
+          <div className="space-y-3 lg:col-span-3">
+            <h2 className="font-display text-lg text-[var(--amancay-gold-light)]">Horarios y contacto</h2>
+            <div className="flex items-start gap-2">
+              <Clock className="mt-1 h-4 w-4 shrink-0 text-[var(--amancay-gold-light)]" aria-hidden="true" />
+              <ul>
+                {STORE.hours.map((h) => (
+                  <li key={h.days}>
+                    {h.days}: {h.time}
+                  </li>
+                ))}
+              </ul>
             </div>
+            <a href={STORE.phoneHref} className="flex min-h-10 items-center gap-2 hover:text-white hover:underline">
+              <Phone className="h-4 w-4 shrink-0 text-[var(--amancay-gold-light)]" aria-hidden="true" />
+              {STORE.whatsappDisplay}
+            </a>
+            <a href={`mailto:${STORE.email}`} className="flex min-h-10 items-center gap-2 hover:text-white hover:underline">
+              <Mail className="h-4 w-4 shrink-0 text-[var(--amancay-gold-light)]" aria-hidden="true" />
+              {STORE.email}
+            </a>
           </div>
 
-          {/* Column 4: WhatsApp Directo & Botón Volver */}
-          <div className="lg:col-span-2 flex flex-col justify-between items-start lg:items-end gap-4">
-            <button
-              onClick={scrollToTop}
-              className="tap-interactive text-xs font-bold uppercase tracking-wider text-[#c5a059] hover:text-white flex items-center gap-1 transition-colors"
-            >
-              <span>Subir al inicio</span>
-              <ChevronUp className="w-4 h-4" />
-            </button>
+          <div className="flex flex-col items-start gap-4 lg:col-span-2 lg:items-end">
             <a
-              href="https://wa.me/5491136740676?text=Hola%20Amancay!%20Quería%20hacer%20una%20consulta."
+              href={whatsappUrl('Hola Amancay, quería hacer una consulta.')}
               target="_blank"
               rel="noopener noreferrer"
-              className="tap-interactive w-full lg:w-auto bg-[#25d366] hover:bg-[#128c7e] text-white text-xs font-bold uppercase tracking-wider px-4 py-3 rounded-full flex items-center justify-center gap-2 transition-colors shadow-sm"
+              className="tap-interactive flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[var(--whatsapp-action)] px-5 font-semibold text-white hover:bg-[var(--whatsapp-action-hover)] lg:w-auto"
             >
-              <MessageCircle className="w-4 h-4" />
-              <span>Chatear por WhatsApp</span>
+              <MessageCircle className="h-4 w-4" aria-hidden="true" />
+              <span>WhatsApp</span>
             </a>
-            <Link
-              href="/admin"
-              className="text-xs text-[#faf7f0]/40 hover:text-[#c5a059] transition-colors"
+            <button
+              type="button"
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              className="tap-interactive flex min-h-10 items-center gap-1 text-sm font-semibold text-[var(--amancay-gold-light)] hover:text-white"
             >
-              Acceso Mostrador / Admin
-            </Link>
-          </div>
-
-        </div>
-
-        {/* Medium Row: Medios de Pago & Envíos */}
-        <div className="py-8 border-b border-[#2c2520] flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#c5a059] block">
-              Medios de Pago Aceptados
-            </span>
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="px-2.5 py-1 rounded-sm bg-[#0b3821] text-white font-bold">3 Cuotas Banco Galicia (Noviembre)</span>
-              <span className="px-2.5 py-1 rounded-sm bg-[#1a1612] border border-[#2c2520] font-medium text-white">Mercado Pago</span>
-              <span className="px-2.5 py-1 rounded-sm bg-[#1a1612] border border-[#2c2520] font-medium text-white">Transferencia Bancaria</span>
-              <span className="px-2.5 py-1 rounded-sm bg-[#1a1612] border border-[#2c2520] text-[#faf7f0]/70">Efectivo en mostrador</span>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#c5a059] block">
-              Envíos y Logística (a cargo del comprador)
-            </span>
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="px-2.5 py-1 rounded-sm bg-[#1a1612] border border-[#2c2520] font-medium text-white">🛵 Motomensajería en el día (CABA)</span>
-              <span className="px-2.5 py-1 rounded-sm bg-[#1a1612] border border-[#2c2520] font-medium text-white">📦 Correo Argentino (Todo el país)</span>
-              <span className="px-2.5 py-1 rounded-sm bg-[#1a1612] border border-[#2c2520] text-[#faf7f0]/80">📍 Retiro en Av. Corrientes 3666</span>
-            </div>
+              <span>Volver arriba</span>
+              <ChevronUp className="h-4 w-4" aria-hidden="true" />
+            </button>
           </div>
         </div>
 
-        {/* Legal Row: Defensa al consumidor, Botón de arrepentimiento, Garantías */}
-        <div className="pt-8 pb-4 text-xs text-[#faf7f0]/60 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            
-            <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+        <div className="flex flex-col gap-4 pt-8 text-sm text-[var(--bg-page)]/80 sm:flex-row sm:items-center sm:justify-between">
+          <ul className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <li>
               <a
                 href="https://buenosaires.gob.ar/defensadelconsumidor"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-white underline decoration-dotted transition-colors"
+                className="inline-flex min-h-11 items-center underline decoration-dotted hover:text-white"
               >
-                Defensa de las y los Consumidores CABA
+                Defensa de las y los Consumidores
               </a>
-              <span>·</span>
+            </li>
+            <li>
               <button
+                type="button"
                 onClick={() => setIsArrepentimientoOpen(true)}
-                className="hover:text-[#c5a059] underline decoration-dotted font-semibold text-white transition-colors"
+                aria-haspopup="dialog"
+                className="inline-flex min-h-11 items-center font-semibold text-white underline decoration-dotted hover:text-[var(--amancay-gold-light)]"
               >
-                Botón de Arrepentimiento
+                Botón de arrepentimiento
               </button>
-              <span>·</span>
-              <span className="text-[#faf7f0]/70">
-                Garantía artesanal y cambios de 30 días
-              </span>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="border border-[#2c2520] px-2 py-1 rounded-xs bg-[#1a1612] text-[10px] uppercase tracking-wider text-[#a67c3f]">
-                Data Fiscal ARCA / AFIP
-              </div>
-            </div>
-
-          </div>
-
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pt-2 border-t border-[#2c2520]/60 text-[11px] text-[#faf7f0]/50">
-            <span>© 2026 AMANCAY · Todos los derechos reservados. Av. Corrientes 3666, Almagro, Buenos Aires.</span>
-            <span>Mates de Autor, Bombillas de Alpaca y Perfumería Fina.</span>
-          </div>
+            </li>
+            <li>
+              <Link href="/admin" className="inline-flex min-h-11 items-center underline decoration-dotted hover:text-white">
+                Panel del local
+              </Link>
+            </li>
+          </ul>
+          <p>© 2026 Perfumería Amancay</p>
         </div>
-
       </div>
 
-      {/* Modal Botón de Arrepentimiento */}
-      {isArrepentimientoOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
-          <div className="bg-[#ffffff] text-[#1a1612] max-w-md w-full p-6 rounded-xl shadow-2xl border border-[#e6dac6] space-y-4 font-sans animate-fade-in-up">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-2 text-[#672d35]">
-                <FileText className="w-5 h-5" />
-                <h3 className="font-display text-xl font-bold text-[#1a1612]">
-                  Botón de Arrepentimiento
-                </h3>
-              </div>
-              <button
-                onClick={() => {
-                  setIsArrepentimientoOpen(false);
-                  setArrepentimientoSent(false);
-                }}
-                className="text-[#5a524a] hover:text-[#1a1612] text-lg font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            <p className="text-xs text-[#5a524a] leading-relaxed">
-              De acuerdo con el Artículo 34 de la Ley 24.240 de Defensa del Consumidor, contás con 10 (diez) días corridos desde la recepción del producto para revocar tu compra online sin costo alguno.
+      <Dialog open={isArrepentimientoOpen} onClose={closeArrepentimiento} title="Botón de arrepentimiento">
+        <p className="mb-4 leading-relaxed text-[var(--ink-muted)]">
+          Por el artículo 34 de la Ley 24.240 tenés 10 días corridos desde que recibís el producto para revocar la compra
+          online, sin costo.
+        </p>
+        {requestCode ? (
+          <div role="status" className="space-y-2 rounded-md border border-[var(--amancay-border)] bg-[var(--bg-page)] p-4">
+            <p className="font-semibold text-[var(--ink-primary)]">Recibimos tu solicitud</p>
+            <p className="text-[var(--ink-muted)]">
+              Tu código de solicitud es <strong className="text-[var(--ink-primary)]">{requestCode}</strong>. Te escribimos a{' '}
+              {emailRef} para coordinar la devolución.
             </p>
-
-            {arrepentimientoSent ? (
-              <div className="bg-[#faf7f0] p-4 rounded-md border border-[#e6dac6] text-center space-y-2">
-                <ShieldCheck className="w-8 h-8 text-[#0b3821] mx-auto" />
-                <h4 className="font-bold text-sm text-[#1a1612]">Solicitud Registrada con Éxito</h4>
-                <p className="text-xs text-[#5a524a]">
-                  Hemos recibido tu pedido de revocación. Nuestro equipo del mostrador te contactará por email en menos de 24 horas hábiles para coordinar la devolución.
-                </p>
-              </div>
-            ) : (
-              <form onSubmit={handleArrepentimientoSubmit} className="space-y-3">
-                <div>
-                  <label className="block text-xs font-semibold text-[#1a1612] mb-1">
-                    Número de Orden o Pedido
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={orderRef}
-                    onChange={(e) => setOrderRef(e.target.value)}
-                    placeholder="Ej: AMC-2026-089"
-                    className="w-full text-xs px-3 py-2 border border-[#e6dac6] rounded-md focus:outline-none focus:border-[#a67c3f]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[#1a1612] mb-1">
-                    Email de la compra
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={emailRef}
-                    onChange={(e) => setEmailRef(e.target.value)}
-                    placeholder="tuemail@ejemplo.com"
-                    className="w-full text-xs px-3 py-2 border border-[#e6dac6] rounded-md focus:outline-none focus:border-[#a67c3f]"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="tap-interactive w-full py-2.5 bg-[#672d35] hover:bg-[#4a1d23] text-white text-xs font-bold uppercase tracking-wider rounded-md transition-colors"
-                >
-                  Confirmar Revocación de Compra
-                </button>
-              </form>
-            )}
+            <p className="text-sm text-[var(--ink-muted)]">Demo: la solicitud no se envía a ningún lado.</p>
           </div>
-        </div>
-      )}
-
+        ) : (
+          <form onSubmit={handleArrepentimientoSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="arr-order" className="mb-1 block font-semibold">
+                Número de pedido
+              </label>
+              <input
+                id="arr-order"
+                name="order"
+                type="text"
+                required
+                autoComplete="off"
+                spellCheck={false}
+                value={orderRef}
+                onChange={(e) => setOrderRef(e.target.value)}
+                placeholder="Ej.: AMC-123456"
+                className="w-full rounded-md border border-[var(--amancay-border)] px-3 py-2.5 focus:border-[var(--ink-accent)]"
+              />
+            </div>
+            <div>
+              <label htmlFor="arr-email" className="mb-1 block font-semibold">
+                Email de la compra
+              </label>
+              <input
+                id="arr-email"
+                name="email"
+                type="email"
+                required
+                autoComplete="email"
+                spellCheck={false}
+                value={emailRef}
+                onChange={(e) => setEmailRef(e.target.value)}
+                placeholder="tu@email.com"
+                className="w-full rounded-md border border-[var(--amancay-border)] px-3 py-2.5 focus:border-[var(--ink-accent)]"
+              />
+            </div>
+            <button
+              type="submit"
+              className="tap-interactive min-h-12 w-full rounded-md bg-[var(--amancay-wine)] font-semibold text-white hover:bg-[#4a1d23]"
+            >
+              Pedir la revocación
+            </button>
+          </form>
+        )}
+      </Dialog>
     </footer>
   );
 }

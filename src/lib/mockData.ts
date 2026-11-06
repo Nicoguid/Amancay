@@ -11,7 +11,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     description: 'Mate Imperial premium elaborado con calabaza brasilera de pared gruesa seleccionada a mano. Forrado íntegramente en cuero vacuno legítimo de primera calidad con costura artesanal punto cruz y 4 patas reforzadas. Virola de alpaca maciza cincelada artesanalmente por maestros orfebres con guardas criollas tradicionales.',
     shortDescription: 'Calabaza brasilera seleccionada, cuero vacuno legítimo y virola de alpaca cincelada.',
     price: 38900,
-    originalPrice: 45000,
     stock: 14,
     sku: 'MAT-IMP-01',
     images: [
@@ -77,7 +76,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     description: 'Diseño clásico uruguayo tipo torpedo, estilizado y anatómico para la mano. Fabricado con calabaza de paredes super gruesas y base forrada en cuero vacuno graneado en color negro azabache o borgoña. Virola lisa de alpaca con borde redondeado que facilita el cebado continuo.',
     shortDescription: 'Calabaza uruguaya compacta, cuero legítimo graneado y virola de alpaca lisa.',
     price: 34900,
-    originalPrice: 41000,
     stock: 10,
     sku: 'MAT-TOR-03',
     images: [
@@ -108,7 +106,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     description: 'Pieza de colección orfebre. Posee una virola de alpaca ancha cincelada con flores de cardo y detalles en relieve en bronce envejecido. Calabaza premium de gran porte, forrada en cuero curtido artesanal y base cosida a lezna.',
     shortDescription: 'Edición exclusiva con relieve en bronce, virola ancha y cardos cincelados.',
     price: 49500,
-    originalPrice: 58000,
     stock: 5,
     sku: 'MAT-IMP-BRO',
     images: [
@@ -139,7 +136,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     description: 'Bombilla insignia de orfebrería criolla tradicional. Fabricada íntegramente en alpaca maciza con diseño anatómico en pico de loro para un cebado cómodo y sin forzar la postura. Caño labrado con virola torneada y pala tipo cuchara ancha con micro-ranuras que filtran hasta el polvo más fino de la yerba.',
     shortDescription: 'Alpaca maciza con curva ergonómica, caño cincelado y pala de filtrado fino.',
     price: 18500,
-    originalPrice: 22000,
     stock: 35,
     sku: 'BOM-PIC-01',
     images: [
@@ -202,7 +198,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     description: 'La solución definitiva para una higiene impecable. Posee un resorte tensor de acero que se desenrosca completamente en segundos para una limpieza profunda de su interior. Incluye de obsequio cepillo limpiador de cerdas finas.',
     shortDescription: '100% desarmable para fácil limpieza. Incluye cepillo limpiador de obsequio.',
     price: 14200,
-    originalPrice: 16800,
     stock: 28,
     sku: 'BOM-RES-03',
     images: [
@@ -230,7 +225,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     description: 'Diseño clásico rural con caño plano o chato que se apoya naturalmente sobre el labio. Cincelado criollo en espiral y pala ranurada compacta. Ideal para mates pequeños o mates torpedos.',
     shortDescription: 'Formato chato tradicional con cincelado rústico criollo.',
     price: 16900,
-    originalPrice: 19500,
     stock: 18,
     sku: 'BOM-CHA-04',
     images: [
@@ -259,7 +253,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     description: 'La fragancia insignia de la casa, inspirada en la mística flor del Amancay y los jardines botánicos porteños. Una creación olfativa de autor que abre con notas chispeantes de bergamota de Calabria y pimienta rosa, evolucionando hacia un corazón aterciopelado de jazmín nocturno, higo dulce y orquídeas silvestres, reposando sobre un fondo envolvente de sándalo blanco, cedro y ámbar gris.',
     shortDescription: 'Fragancia insignia de autor. Notas de bergamota, flor de amancay, higo y sándalo.',
     price: 46500,
-    originalPrice: 54000,
     stock: 16,
     sku: 'PERF-AMA-01',
     images: [
@@ -293,7 +286,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     description: 'El clásico indiscutido de la perfumería masculina nacional. Una composición amaderada aromática de gran presencia y elegancia formal. Destacan acordes de lavanda fresca, nuez moscada y un fondo noble de maderas oscuras y musgo.',
     shortDescription: 'Clásico masculino amaderado con lavanda, especias y cedro noble.',
     price: 38500,
-    originalPrice: 44000,
     stock: 20,
     sku: 'PERF-KEV-02',
     images: [
@@ -323,7 +315,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     description: 'Fragancia femenina luminosa, romántica y delicada. Una caricia olfativa con apertura cítrica suave que da paso a flores blancas silvestres, jazmín y un fondo dulce y reconfortante de sándalo y vainilla cálida.',
     shortDescription: 'Fragancia femenina floral y etérea con azahar, jazmín y sándalo.',
     price: 42000,
-    originalPrice: 48000,
     stock: 14,
     sku: 'PERF-PCD-03',
     images: [
@@ -382,9 +373,9 @@ export const INITIAL_ORDERS: Order[] = [
     createdAt: '2026-11-04T18:24:00.000Z',
     customer: {
       fullName: 'Mariano Benítez',
-      email: 'marianob@gmail.com',
-      phone: '1145229081',
-      dni: '34890123',
+      email: 'mariano@ejemplo.com',
+      phone: '1100000000',
+      dni: '00000000',
       address: 'Bulnes 742, 3B',
       city: 'Almagro, CABA',
       postalCode: '1176'

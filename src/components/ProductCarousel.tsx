@@ -1,120 +1,103 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Product } from '@/lib/types';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import type { Product } from '@/lib/types';
 import { ProductCard } from './ProductCard';
-import { ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 
 interface ProductCarouselProps {
   title: string;
   subtitle?: string;
   products: Product[];
-  tag?: string;
   viewAllLink?: string;
+  viewAllLabel?: string;
 }
 
-export function ProductCarousel({ title, subtitle, products, tag, viewAllLink }: ProductCarouselProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+export function ProductCarousel({ title, subtitle, products, viewAllLink, viewAllLabel = 'Ver todos' }: ProductCarouselProps) {
+  const scrollRef = useRef<HTMLUListElement>(null);
+  const headingId = useId();
   const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(true);
+  const [canScrollRight, setCanScrollRight] = useState(false);
 
-  const checkScroll = () => {
-    if (!scrollRef.current) return;
-    const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
-    setCanScrollLeft(scrollLeft > 10);
-    setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10);
-  };
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const update = () => {
+      setCanScrollLeft(el.scrollLeft > 10);
+      setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 10);
+    };
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    el.addEventListener('scroll', update, { passive: true });
+    return () => {
+      observer.disconnect();
+      el.removeEventListener('scroll', update);
+    };
+  }, [products.length]);
 
   const scroll = (direction: 'left' | 'right') => {
-    if (!scrollRef.current) return;
-    const offset = scrollRef.current.clientWidth * 0.75;
-    scrollRef.current.scrollBy({
-      left: direction === 'left' ? -offset : offset,
-      behavior: 'smooth'
-    });
+    const el = scrollRef.current;
+    if (!el) return;
+    const offset = el.clientWidth * 0.8;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el.scrollBy({ left: direction === 'left' ? -offset : offset, behavior: reduce ? 'auto' : 'smooth' });
   };
 
-  if (!products || products.length === 0) return null;
+  if (products.length === 0) return null;
 
   return (
-    <section className="py-12 sm:py-16 bg-[#ffffff] border-b border-[#e6dac6] overflow-hidden font-sans">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
-        {/* Header with Title and Controls */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4">
+    <section aria-labelledby={headingId} className="border-b border-[var(--amancay-border)] bg-white py-12 sm:py-16">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              {tag && (
-                <span className="text-xs font-bold uppercase tracking-wider text-[#a67c3f] bg-[#faf7f0] px-2.5 py-0.5 rounded-full border border-[#e6dac6]">
-                  {tag}
-                </span>
-              )}
-            </div>
-            <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl text-[#1a1612] tracking-tight font-bold">
+            <h2 id={headingId} className="font-display text-3xl tracking-tight text-[var(--ink-primary)] lg:text-4xl">
               {title}
             </h2>
-            {subtitle && (
-              <p className="text-sm text-[#5a524a] font-sans mt-1">
-                {subtitle}
-              </p>
-            )}
+            {subtitle && <p className="mt-1 max-w-2xl text-[var(--ink-muted)]">{subtitle}</p>}
           </div>
 
-          {/* Navigation Controls */}
           <div className="flex items-center gap-3">
             {viewAllLink && (
               <Link
                 href={viewAllLink}
-                className="text-xs font-bold uppercase tracking-wider text-[#a67c3f] hover:text-[#1a1612] flex items-center gap-1 transition-colors mr-2"
+                className="mr-2 font-semibold text-[var(--ink-accent)] underline-offset-4 hover:text-[var(--ink-accent-hover)] hover:underline"
               >
-                <span>Ver todos</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                {viewAllLabel}
               </Link>
             )}
-            <button
-              onClick={() => scroll('left')}
-              disabled={!canScrollLeft}
-              aria-label="Desplazar hacia la izquierda"
-              className={`tap-interactive w-10 h-10 rounded-full border border-[#e6dac6] flex items-center justify-center transition-colors ${
-                canScrollLeft
-                  ? 'bg-[#faf7f0] hover:bg-[#1a1612] hover:text-white text-[#1a1612]'
-                  : 'bg-[#faf7f0]/40 text-[#5a524a]/40 cursor-not-allowed opacity-40'
-              }`}
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => scroll('right')}
-              disabled={!canScrollRight}
-              aria-label="Desplazar hacia la derecha"
-              className={`tap-interactive w-10 h-10 rounded-full border border-[#e6dac6] flex items-center justify-center transition-colors ${
-                canScrollRight
-                  ? 'bg-[#faf7f0] hover:bg-[#1a1612] hover:text-white text-[#1a1612]'
-                  : 'bg-[#faf7f0]/40 text-[#5a524a]/40 cursor-not-allowed opacity-40'
-              }`}
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
+            {(canScrollLeft || canScrollRight) && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => scroll('left')}
+                  disabled={!canScrollLeft}
+                  aria-label={`Anteriores: ${title}`}
+                  className="tap-interactive flex h-11 w-11 items-center justify-center rounded-full border border-[var(--amancay-border)] bg-[var(--bg-page)] text-[var(--ink-primary)] hover:bg-[var(--ink-primary)] hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[var(--bg-page)] disabled:hover:text-[var(--ink-primary)]"
+                >
+                  <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scroll('right')}
+                  disabled={!canScrollRight}
+                  aria-label={`Siguientes: ${title}`}
+                  className="tap-interactive flex h-11 w-11 items-center justify-center rounded-full border border-[var(--amancay-border)] bg-[var(--bg-page)] text-[var(--ink-primary)] hover:bg-[var(--ink-primary)] hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[var(--bg-page)] disabled:hover:text-[var(--ink-primary)]"
+                >
+                  <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                </button>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Scrollable Products Ribbon */}
-        <div
-          ref={scrollRef}
-          onScroll={checkScroll}
-          className="flex gap-5 sm:gap-6 overflow-x-auto no-scrollbar scroll-smooth pb-4 -mx-4 px-4 sm:mx-0 sm:px-0"
-        >
+        <ul ref={scrollRef} className="no-scrollbar -mx-4 flex snap-x gap-5 overflow-x-auto px-4 pb-4 sm:mx-0 sm:gap-6 sm:px-0">
           {products.map((product) => (
-            <div
-              key={product.id}
-              className="w-[280px] sm:w-[310px] shrink-0"
-            >
+            <li key={product.id} className="w-[260px] shrink-0 snap-start sm:w-[300px]">
               <ProductCard product={product} />
-            </div>
+            </li>
           ))}
-        </div>
-
+        </ul>
       </div>
     </section>
   );

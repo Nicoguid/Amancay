@@ -1,292 +1,302 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import { useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Search, ShoppingBag, MessageCircle, Menu, X } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { CartDrawer } from './CartDrawer';
-import { MarqueeTicker } from './MarqueeTicker';
-import { Search, ShoppingBag, MessageCircle, Menu, X } from 'lucide-react';
+import { AnnouncementBar } from './MarqueeTicker';
+import { ProductImage } from './ProductImage';
+import { formatPrice, normalizeText, whatsappUrl } from '@/lib/storeConfig';
+
+const NAV_LINKS = [
+  { href: '/catalogo?rubro=mates', label: 'Mates' },
+  { href: '/catalogo?rubro=bombillas', label: 'Bombillas' },
+  { href: '/catalogo?rubro=perfumes', label: 'Perfumes' },
+  { href: '/catalogo', label: 'Ver todo' },
+];
 
 export function Navbar() {
   const router = useRouter();
-  const { cartCount, products } = useStore();
+  const { cartCount, products, isHydrated } = useStore();
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
-  // Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listId = useId();
+  const mobileMenuId = useId();
 
-  const searchResults = searchQuery.trim().length > 1
-    ? products
-        .filter((p) => p.active)
-        .filter(
-          (p) =>
-            p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            p.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            p.category.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-        .slice(0, 6)
-    : [];
+  const allMatches = useMemo(() => {
+    const q = normalizeText(searchQuery);
+    if (q.length < 2) return [];
+    return products.filter(
+      (p) =>
+        p.active &&
+        (normalizeText(p.name).includes(q) || normalizeText(p.brand).includes(q) || normalizeText(p.category).includes(q))
+    );
+  }, [products, searchQuery]);
+  const searchResults = allMatches.slice(0, 6);
+  const showResults = isSearchOpen && searchQuery.trim().length > 1;
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setIsSearchOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const goToCatalog = (query: string) => {
+    const q = query.trim();
+    if (!q) return;
+    setIsSearchOpen(false);
+    setIsMobileMenuOpen(false);
+    router.push(`/catalogo?q=${encodeURIComponent(q)}`);
+  };
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
+  const focusResult = (index: number) => {
+    const links = searchRef.current?.querySelectorAll<HTMLAnchorElement>('[data-search-result]');
+    if (!links || links.length === 0) return;
+    const i = (index + links.length) % links.length;
+    links[i].focus();
+  };
+
+  const onSearchKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {
       setIsSearchOpen(false);
-      router.push(`/catalogo?q=${encodeURIComponent(searchQuery.trim())}`);
+      inputRef.current?.focus();
+      return;
     }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    const links = Array.from(searchRef.current?.querySelectorAll<HTMLAnchorElement>('[data-search-result]') ?? []);
+    if (!links.length) return;
+    e.preventDefault();
+    const current = links.indexOf(document.activeElement as HTMLAnchorElement);
+    if (current === -1) focusResult(e.key === 'ArrowDown' ? 0 : -1);
+    else focusResult(current + (e.key === 'ArrowDown' ? 1 : -1));
   };
 
   return (
-    <header className="w-full max-w-full overflow-x-clip font-sans">
-      {/* Top Infinite Running Marquee */}
-      <MarqueeTicker variant="top" />
+    <>
+      <AnnouncementBar />
+      <header className="sticky top-0 z-40 w-full border-b border-[var(--amancay-border)] bg-white font-sans shadow-xs">
+        <nav aria-label="Principal" className="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center justify-between gap-2 sm:h-20 sm:gap-4">
+            <Link href="/" className="group flex shrink-0 flex-col py-2">
+              <span className="font-display text-2xl leading-none tracking-tight text-[var(--ink-primary)] transition-colors group-hover:text-[var(--ink-accent)] sm:text-3xl">
+                Amancay
+              </span>
+              <span className="mt-1 hidden text-xs font-medium text-[var(--ink-muted)] sm:block">
+                Perfumería · Almagro
+              </span>
+            </Link>
 
-      {/* Main Sticky Navigation Bar */}
-      <nav className="sticky top-0 z-40 w-full bg-[#ffffff] border-b border-[#e6dac6] shadow-xs">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20 sm:h-24 gap-2 sm:gap-4">
-            
-            {/* Brand Wordmark */}
-            <div className="flex items-center gap-2 sm:gap-3 shrink-0 py-2">
-              <Link 
-                href="/" 
-                className="group flex flex-col focus:outline-none"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="font-display text-2xl sm:text-3xl lg:text-3xl xl:text-4xl tracking-tight text-[#1a1612] transition-colors group-hover:text-[#a67c3f] leading-none font-semibold">
-                    AMANCAY
-                  </span>
-                  <span className="hidden md:inline-block px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-[#faf7f0] text-[#a67c3f] border border-[#e6dac6]">
-                    Almagro · CABA
-                  </span>
-                </div>
-                <span className="text-[11px] sm:text-xs xl:text-sm text-[#5a524a] font-medium tracking-wide mt-1 hidden sm:block truncate max-w-[200px] lg:max-w-[220px] xl:max-w-none">
-                  Mates de Autor · Bombillas · Perfumería
-                </span>
-              </Link>
-            </div>
+            <ul className="hidden items-center gap-5 text-sm font-semibold text-[var(--ink-primary)] lg:flex">
+              {NAV_LINKS.map((link) => (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    className="py-1 underline-offset-4 transition-colors hover:text-[var(--ink-accent)] hover:underline"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
 
-            {/* Desktop Navigation Links - STRICTLY MATES, BOMBILLAS, PERFUMES */}
-            <div className="hidden lg:flex items-center gap-3.5 xl:gap-5 2xl:gap-6 text-sm font-semibold text-[#1a1612] whitespace-nowrap">
-              <Link 
-                href="/catalogo?rubro=mates" 
-                className="hover:text-[#a67c3f] transition-colors py-1 hover:underline decoration-2 underline-offset-4"
-              >
-                Mates
-              </Link>
-              <Link 
-                href="/catalogo?rubro=bombillas" 
-                className="hover:text-[#a67c3f] transition-colors py-1 hover:underline decoration-2 underline-offset-4"
-              >
-                Bombillas
-              </Link>
-              <Link 
-                href="/catalogo?rubro=perfumes" 
-                className="hover:text-[#a67c3f] transition-colors py-1 hover:underline decoration-2 underline-offset-4"
-              >
-                Perfumes
-              </Link>
-              <Link 
-                href="/catalogo" 
-                className="hover:text-[#a67c3f] transition-colors py-1 hover:underline decoration-2 underline-offset-4 text-[#5a524a]"
-              >
-                Ver Todo
-              </Link>
-            </div>
-
-            {/* Search + WhatsApp + Cart Drawer (shrink-0 ensures it NEVER overflows or cuts off) */}
-            <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-              
-              {/* Autocomplete Search Bar */}
-              <div ref={searchRef} className="relative hidden md:block w-36 lg:w-44 xl:w-56 2xl:w-64">
-                <form onSubmit={handleSearchSubmit} className="relative">
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
+              {/* Buscador con resultados navegables con flechas */}
+              <div ref={searchRef} className="relative hidden w-44 md:block xl:w-64" onKeyDown={onSearchKeyDown}>
+                <form
+                  role="search"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    goToCatalog(searchQuery);
+                  }}
+                >
+                  <label htmlFor="navbar-search" className="sr-only">
+                    Buscar productos
+                  </label>
                   <input
-                    type="text"
+                    ref={inputRef}
+                    id="navbar-search"
+                    type="search"
+                    autoComplete="off"
                     value={searchQuery}
                     onChange={(e) => {
                       setSearchQuery(e.target.value);
                       setIsSearchOpen(true);
                     }}
                     onFocus={() => setIsSearchOpen(true)}
-                    placeholder="Buscar productos..."
-                    className="w-full bg-[#faf7f0] focus:bg-white text-xs sm:text-sm text-[#1a1612] placeholder-[#5a524a] pl-8 sm:pl-9 pr-3 py-1.5 sm:py-2 rounded-full border border-[#e6dac6] focus:border-[#a67c3f] focus:outline-none transition-all shadow-2xs"
+                    onBlur={(e) => {
+                      if (!searchRef.current?.contains(e.relatedTarget as Node)) setIsSearchOpen(false);
+                    }}
+                    aria-describedby={showResults ? listId : undefined}
+                    placeholder="Buscar productos…"
+                    className="w-full rounded-full border border-[var(--amancay-border)] bg-[var(--bg-page)] py-2 pl-9 pr-3 text-sm text-[var(--ink-primary)] placeholder-[var(--ink-muted)] transition-colors focus:border-[var(--ink-accent)] focus:bg-white"
                   />
-                  <Search className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-[#5a524a] absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--ink-muted)]" aria-hidden="true" />
                 </form>
-
-                {/* Dropdown Results */}
-                {isSearchOpen && searchResults.length > 0 && (
-                  <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-md border border-[#e6dac6] overflow-hidden z-50 shadow-xl animate-fade-in-up">
-                    <div className="divide-y divide-[#f4efe6] max-h-80 overflow-y-auto">
-                      {searchResults.map((product) => (
-                        <button
-                          key={product.id}
-                          onClick={() => {
-                            setIsSearchOpen(false);
-                            setSearchQuery('');
-                            router.push(`/producto/${product.id}`);
-                          }}
-                          className="w-full text-left p-3 hover:bg-[#faf7f0] transition-colors flex items-center gap-3 text-sm"
+                <p className="sr-only" aria-live="polite">
+                  {showResults ? `${allMatches.length} resultados` : ''}
+                </p>
+                {showResults && (
+                  <div
+                    id={listId}
+                    className="animate-fade-in-up absolute left-0 right-0 top-full z-50 mt-2 w-80 max-w-[90vw] overflow-hidden rounded-lg border border-[var(--amancay-border)] bg-white shadow-xl xl:w-full"
+                    onBlur={(e) => {
+                      if (!searchRef.current?.contains(e.relatedTarget as Node)) setIsSearchOpen(false);
+                    }}
+                  >
+                    {searchResults.length === 0 ? (
+                      <p className="p-4 text-sm text-[var(--ink-muted)]">No hay productos con “{searchQuery.trim()}”.</p>
+                    ) : (
+                      <ul className="max-h-80 divide-y divide-[var(--bg-subtle)] overflow-y-auto">
+                        {searchResults.map((product) => (
+                          <li key={product.id}>
+                            <Link
+                              href={`/producto/${product.id}`}
+                              data-search-result
+                              onClick={() => {
+                                setIsSearchOpen(false);
+                                setSearchQuery('');
+                              }}
+                              className="flex items-center gap-3 p-3 text-sm hover:bg-[var(--bg-page)] focus-visible:bg-[var(--bg-page)]"
+                            >
+                              <ProductImage
+                                src={product.images[0]}
+                                alt=""
+                                width={48}
+                                height={48}
+                                className="h-12 w-12 shrink-0 rounded-md border border-[var(--amancay-border)] bg-[var(--bg-subtle)] object-cover"
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate font-semibold text-[var(--ink-primary)]">{product.name}</span>
+                                <span className="block text-xs text-[var(--ink-muted)]">{product.brand}</span>
+                              </span>
+                              <span className="shrink-0 font-semibold tabular-nums text-[var(--ink-primary)]">
+                                {formatPrice(product.price)}
+                              </span>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {allMatches.length > 0 && (
+                      <div className="border-t border-[var(--amancay-border)] bg-[var(--bg-page)] p-2.5 text-center">
+                        <Link
+                          href={`/catalogo?q=${encodeURIComponent(searchQuery.trim())}`}
+                          data-search-result
+                          onClick={() => setIsSearchOpen(false)}
+                          className="text-sm font-semibold text-[var(--ink-accent)] hover:text-[var(--ink-accent-hover)]"
                         >
-                          <img
-                            src={product.images[0]}
-                            alt=""
-                            className="w-12 h-12 object-cover rounded-md bg-[#f4efe6] border border-[#e6dac6] shrink-0"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-[#1a1612] truncate">{product.name}</p>
-                            <div className="flex items-center gap-2 text-xs text-[#5a524a] mt-0.5">
-                              <span className="capitalize font-medium text-[#a67c3f]">{product.category}</span>
-                              <span>·</span>
-                              <span>{product.brand}</span>
-                            </div>
-                            <p className="text-xs text-[#0b3821] font-medium">3 cuotas Galicia de ${(product.price / 3).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</p>
-                          </div>
-                          <span className="font-bold text-[#1a1612] shrink-0 tabular-nums">
-                            ${product.price.toLocaleString('es-AR')}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                    <div className="bg-[#faf7f0] p-2.5 text-center border-t border-[#e6dac6]">
-                      <Link
-                        href={`/catalogo?q=${encodeURIComponent(searchQuery)}`}
-                        onClick={() => setIsSearchOpen(false)}
-                        className="text-xs font-bold text-[#a67c3f] hover:text-[#8c652d] uppercase tracking-wider"
-                      >
-                        Ver todos los resultados ({searchResults.length}) →
-                      </Link>
-                    </div>
+                          Ver los {allMatches.length} resultados en el catálogo
+                        </Link>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
 
-              {/* WhatsApp Quick Contact */}
               <a
-                href="https://wa.me/5491136740676?text=Hola%20Amancay!%20Quiero%20hacer%20una%20consulta%20sobre%20sus%20productos."
+                href={whatsappUrl('Hola Amancay, quiero hacer una consulta.')}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="tap-interactive hidden sm:flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#0b3821] bg-[#faf7f0] hover:bg-[#f4efe6] border border-[#e6dac6] px-2.5 sm:px-3.5 py-2 sm:py-2.5 rounded-full transition-colors shrink-0"
-                title="Consultas por WhatsApp"
+                className="tap-interactive hidden h-11 shrink-0 items-center gap-1.5 rounded-full border border-[var(--amancay-border)] bg-[var(--bg-page)] px-3 text-sm font-semibold text-[var(--whatsapp-action)] transition-colors hover:bg-[var(--bg-subtle)] sm:flex"
               >
-                <MessageCircle className="w-4 h-4 text-[#25d366] shrink-0" />
+                <MessageCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span className="hidden xl:inline">WhatsApp</span>
+                <span className="sr-only xl:hidden">Consultar por WhatsApp</span>
               </a>
 
-              {/* Cart Drawer Trigger Button */}
               <button
+                type="button"
                 onClick={() => setIsCartOpen(true)}
-                className="tap-interactive flex items-center gap-1.5 sm:gap-2 bg-[#1a1612] hover:bg-[#2c2520] text-[#faf7f0] px-3 sm:px-4 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold tracking-wide shadow-sm shrink-0"
-                aria-label={`Carrito de compra, ${cartCount} productos`}
+                aria-haspopup="dialog"
+                className="tap-interactive flex h-11 shrink-0 items-center gap-2 rounded-full bg-[var(--ink-primary)] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[var(--ink-secondary)]"
               >
-                <ShoppingBag className="w-4 h-4 text-[#a67c3f] shrink-0" />
-                <span className="hidden sm:inline">Carrito</span>
-                <span className="bg-[#a67c3f] text-[#ffffff] px-2 py-0.5 rounded-full text-xs font-bold tabular-nums">
-                  {cartCount}
+                <ShoppingBag className="h-4 w-4 text-[var(--amancay-gold-light)]" aria-hidden="true" />
+                <span aria-hidden="true">Carrito</span>
+                <span className="sr-only">
+                  {`Carrito, ${isHydrated ? cartCount : 0} ${cartCount === 1 && isHydrated ? 'producto' : 'productos'}`}
                 </span>
-              </button>
-
-              {/* Mobile Menu Toggle Button */}
-              <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="lg:hidden tap-interactive p-2 text-[#1a1612] hover:bg-[#faf7f0] rounded-md border border-[#e6dac6] shrink-0"
-                aria-label="Abrir menú de navegación"
-              >
-                {isMobileMenuOpen ? (
-                  <X className="w-5 h-5 sm:w-6 sm:h-6" />
-                ) : (
-                  <Menu className="w-5 h-5 sm:w-6 sm:h-6" />
+                {isHydrated && cartCount > 0 && (
+                  <span aria-hidden="true" className="rounded-full bg-[var(--amancay-gold-light)] px-2 py-0.5 text-xs font-bold tabular-nums text-[var(--ink-primary)]">
+                    {cartCount}
+                  </span>
                 )}
               </button>
 
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen((open) => !open)}
+                aria-expanded={isMobileMenuOpen}
+                aria-controls={mobileMenuId}
+                className="tap-interactive flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-[var(--amancay-border)] text-[var(--ink-primary)] hover:bg-[var(--bg-page)] lg:hidden"
+              >
+                {isMobileMenuOpen ? <X className="h-5 w-5" aria-hidden="true" /> : <Menu className="h-5 w-5" aria-hidden="true" />}
+                <span className="sr-only">{isMobileMenuOpen ? 'Cerrar menú' : 'Abrir menú'}</span>
+              </button>
             </div>
           </div>
-        </div>
+        </nav>
 
-        {/* Mobile Menu Overlay */}
         {isMobileMenuOpen && (
-          <div className="lg:hidden bg-[#ffffff] border-t border-[#e6dac6] px-5 pt-4 pb-6 space-y-4 animate-fade-in-up shadow-lg">
-            <form onSubmit={handleSearchSubmit} className="relative">
+          <div
+            id={mobileMenuId}
+            className="animate-fade-in-up max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-[var(--amancay-border)] bg-white px-5 pb-6 pt-4 shadow-lg lg:hidden"
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setIsMobileMenuOpen(false);
+            }}
+          >
+            <form
+              role="search"
+              className="relative"
+              onSubmit={(e) => {
+                e.preventDefault();
+                goToCatalog(searchQuery);
+              }}
+            >
+              <label htmlFor="mobile-search" className="sr-only">
+                Buscar productos
+              </label>
               <input
-                type="text"
+                id="mobile-search"
+                type="search"
+                autoComplete="off"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar mates, bombillas o perfumes..."
-                className="w-full bg-[#faf7f0] text-sm text-[#1a1612] placeholder-[#5a524a] pl-10 pr-4 py-3 rounded-md border border-[#e6dac6] focus:outline-none"
+                placeholder="Buscar mates, bombillas o perfumes…"
+                className="w-full rounded-md border border-[var(--amancay-border)] bg-[var(--bg-page)] py-3 pl-10 pr-4 text-base text-[var(--ink-primary)] placeholder-[var(--ink-muted)]"
               />
-              <Search className="w-5 h-5 text-[#5a524a] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--ink-muted)]" aria-hidden="true" />
             </form>
 
-            <div className="flex flex-col space-y-2 text-base font-semibold text-[#1a1612]">
-              <Link
-                href="/catalogo?rubro=mates"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="py-2 px-3 rounded-md hover:bg-[#faf7f0] hover:text-[#a67c3f] transition-colors flex items-center justify-between"
+            <ul className="mt-4 flex flex-col gap-1 text-base font-semibold text-[var(--ink-primary)]">
+              {NAV_LINKS.map((link) => (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex min-h-11 items-center rounded-md px-3 hover:bg-[var(--bg-page)] hover:text-[var(--ink-accent)]"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-4 flex flex-col gap-2 border-t border-[var(--amancay-border)] pt-4">
+              <a
+                href={whatsappUrl('Hola Amancay, quiero hacer una consulta.')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex min-h-12 items-center justify-center gap-2 rounded-md bg-[var(--whatsapp-action)] text-base font-semibold text-white hover:bg-[var(--whatsapp-action-hover)]"
               >
-                <span>Mates de Autor</span>
-                <span className="text-xs uppercase tracking-wider text-[#a67c3f] font-bold">Imperiales & Torpedos</span>
-              </Link>
-              <Link
-                href="/catalogo?rubro=bombillas"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="py-2 px-3 rounded-md hover:bg-[#faf7f0] hover:text-[#a67c3f] transition-colors flex items-center justify-between"
-              >
-                <span>Bombillas Cinceladas</span>
-                <span className="text-xs uppercase tracking-wider text-[#a67c3f] font-bold">Alpaca & Acero</span>
-              </Link>
-              <Link
-                href="/catalogo?rubro=perfumes"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="py-2 px-3 rounded-md hover:bg-[#faf7f0] hover:text-[#a67c3f] transition-colors flex items-center justify-between"
-              >
-                <span>Perfumería Fina</span>
-                <span className="text-xs uppercase tracking-wider text-[#a67c3f] font-bold">Esencias Exclusivas</span>
-              </Link>
-              <Link
-                href="/catalogo"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="py-2 px-3 rounded-md hover:bg-[#faf7f0] text-[#5a524a]"
-              >
-                Catálogo Completo
-              </Link>
-              <div className="pt-2 border-t border-[#e6dac6] flex flex-col gap-2">
-                <a
-                  href="https://wa.me/5491136740676?text=Hola%20Amancay!%20Quiero%20hacer%20una%20consulta."
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full py-3 bg-[#25d366] text-white rounded-md text-center font-bold text-sm flex items-center justify-center gap-2"
-                >
-                  <MessageCircle className="w-5 h-5" />
-                  <span>Consultar por WhatsApp</span>
-                </a>
-                <Link
-                  href="/admin"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="py-2.5 text-[#5a524a] hover:text-[#1a1612] text-center text-xs font-semibold"
-                >
-                  Acceso Mostrador / Panel Admin
-                </Link>
-              </div>
+                <MessageCircle className="h-5 w-5" aria-hidden="true" />
+                <span>Consultar por WhatsApp</span>
+              </a>
             </div>
           </div>
         )}
-      </nav>
+      </header>
 
-      {/* Cart Drawer */}
       <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
-    </header>
+    </>
   );
 }

@@ -1,250 +1,178 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, ArrowRight, MessageCircle, Sparkles, CreditCard, Truck, Bike } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ArrowRight, Pause, Play } from 'lucide-react';
+import { ProductImage } from './ProductImage';
+import { STORE } from '@/lib/storeConfig';
 
 interface BannerSlide {
   id: string;
-  tag: string;
+  eyebrow: string;
   title: string;
-  highlight: string;
   description: string;
   primaryCta: { text: string; href: string };
   secondaryCta: { text: string; href: string };
-  bgColor: string;
-  badgeBg: string;
-  badgeText: string;
   image: string;
-  accentBadge: string;
+  imageAlt: string;
 }
 
+// Fotos de archivo (Unsplash): reemplazar por fotos propias del local (PRODUCT.md).
 const SLIDES: BannerSlide[] = [
   {
-    id: 'slide-1',
-    tag: 'Orfebrería Criolla de Autor',
-    title: 'Mates Imperiales en Calabaza',
-    highlight: '& Alpaca Cincelada.',
-    description: 'Calabazas de pared extra gruesa seleccionadas a mano, revestidas en cuero vacuno legítimo con costura reforzada y 4 patas estructuradas. El ritual matero elevado a su máxima expresión.',
-    primaryCta: { text: 'Ver Mates Imperiales', href: '/catalogo?rubro=mates' },
-    secondaryCta: { text: 'Ver Bombillas de Alpaca', href: '/catalogo?rubro=bombillas' },
-    bgColor: 'bg-[#14110e]',
-    badgeBg: 'bg-[#a67c3f]',
-    badgeText: 'text-[#ffffff]',
-    accentBadge: '3 Cuotas Banco Galicia (Noviembre)',
-    image: 'https://images.unsplash.com/photo-1583321500900-82807e458f3c?auto=format&fit=crop&w=1200&q=80'
+    id: 'slide-mates',
+    eyebrow: 'Mates',
+    title: 'Mates imperiales, camioneros y torpedos',
+    description: 'Calabaza y algarrobo con virolas de alpaca y acero. Precio y stock a la vista.',
+    primaryCta: { text: 'Ver mates', href: '/catalogo?rubro=mates' },
+    secondaryCta: { text: 'Ver bombillas', href: '/catalogo?rubro=bombillas' },
+    image: 'https://images.unsplash.com/photo-1583321500900-82807e458f3c?auto=format&fit=crop&w=1200&q=80',
+    imageAlt: 'Mate de calabaza forrado en cuero',
   },
   {
-    id: 'slide-2',
-    tag: 'Perfumería Fina Amancay',
-    title: 'Fragancias de Autor',
-    highlight: '& Esencias Porteñas.',
-    description: 'Creaciones olfativas exclusivas elaboradas con aceites esenciales puros de alta fijación. Notas amaderadas, florales y cítricas que perduran todo el día.',
-    primaryCta: { text: 'Descubrir Perfumes', href: '/catalogo?rubro=perfumes' },
-    secondaryCta: { text: 'Consultar por WhatsApp', href: 'https://wa.me/5491136740676?text=Hola%20Amancay!%20Quiero%20asesoramiento%20sobre%20fragancias.' },
-    bgColor: 'bg-[#1e1316]',
-    badgeBg: 'bg-[#672d35]',
-    badgeText: 'text-[#ffffff]',
-    accentBadge: 'Entregas en el Día en CABA',
-    image: 'https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?auto=format&fit=crop&w=1200&q=80'
+    id: 'slide-perfumes',
+    eyebrow: 'Perfumería',
+    title: 'Perfumes de autor y marcas nacionales',
+    description: 'Fragancias de la casa y clásicos nacionales en 50 y 100 ml.',
+    primaryCta: { text: 'Ver perfumes', href: '/catalogo?rubro=perfumes' },
+    secondaryCta: { text: 'Ver todo el catálogo', href: '/catalogo' },
+    image: 'https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?auto=format&fit=crop&w=1200&q=80',
+    imageAlt: 'Frascos de perfume',
   },
   {
-    id: 'slide-3',
-    tag: 'Filtrado de Alta Precisión',
-    title: 'Bombillas Pico de Loro',
-    highlight: 'en Alpaca y Acero 304.',
-    description: 'Caño labrado criollo, pico anatómico y pala con ranuras microperforadas que no se tapan. Piezas forjadas para resistir toda la vida sin calentar los labios.',
-    primaryCta: { text: 'Ver Colección Bombillas', href: '/catalogo?rubro=bombillas' },
-    secondaryCta: { text: 'Ver Todo el Catálogo', href: '/catalogo' },
-    bgColor: 'bg-[#0f1712]',
-    badgeBg: 'bg-[#0b3821]',
-    badgeText: 'text-[#ffffff]',
-    accentBadge: 'Envíos por Correo Argentino',
-    image: 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&w=1200&q=80'
-  }
+    id: 'slide-bombillas',
+    eyebrow: 'Bombillas',
+    title: 'Bombillas de alpaca y acero',
+    description: 'Pico de loro, chatas y desarmables con cepillo.',
+    primaryCta: { text: 'Ver bombillas', href: '/catalogo?rubro=bombillas' },
+    secondaryCta: { text: 'Ver mates', href: '/catalogo?rubro=mates' },
+    image: 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&w=1200&q=80',
+    imageAlt: 'Bombilla de metal',
+  },
 ];
+
+const INTERVAL_MS = 7000;
 
 export function HeroBannerCarousel() {
   const [current, setCurrent] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const [userPaused, setUserPaused] = useState(false);
+  const [hoverOrFocus, setHoverOrFocus] = useState(false);
+  const sectionRef = useRef<HTMLElement>(null);
 
-  const nextSlide = () => {
-    setCurrent((prev) => (prev + 1) % SLIDES.length);
-  };
-
-  const prevSlide = () => {
-    setCurrent((prev) => (prev - 1 + SLIDES.length) % SLIDES.length);
-  };
+  const paused = userPaused || hoverOrFocus;
 
   useEffect(() => {
-    if (isPaused) return;
-    timerRef.current = setInterval(nextSlide, 7000);
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [current, isPaused]);
+    if (paused) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const timer = setInterval(() => setCurrent((prev) => (prev + 1) % SLIDES.length), INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [paused]);
 
-  const activeSlide = SLIDES[current];
+  const go = (index: number) => setCurrent((index + SLIDES.length) % SLIDES.length);
+  const slide = SLIDES[current];
 
   return (
     <section
-      aria-label="Banners Promocionales Destacados"
-      className="relative overflow-hidden bg-[#14110e] text-white font-sans"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
+      ref={sectionRef}
+      aria-roledescription="carrusel"
+      aria-label="Destacados"
+      className="focus-on-dark relative overflow-hidden bg-[#14110e] text-white"
+      onMouseEnter={() => setHoverOrFocus(true)}
+      onMouseLeave={() => setHoverOrFocus(false)}
+      onFocus={() => setHoverOrFocus(true)}
+      onBlur={(e) => {
+        if (!sectionRef.current?.contains(e.relatedTarget as Node)) setHoverOrFocus(false);
+      }}
     >
-      {/* Background Slides with Crossfade */}
-      <div className="relative min-h-[560px] sm:min-h-[620px] lg:min-h-[680px] flex items-center">
-        {SLIDES.map((slide, idx) => {
-          const isActive = idx === current;
-          return (
-            <div
-              key={slide.id}
-              className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${slide.bgColor} ${
-                isActive ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
-              }`}
+      {/* Fondo: solo la imagen activa */}
+      <div className="absolute inset-0" aria-hidden="true">
+        <ProductImage
+          key={slide.id}
+          src={slide.image}
+          alt=""
+          width={1200}
+          height={800}
+          priority={current === 0}
+          className="animate-fade-in-up h-full w-full object-cover object-center opacity-30"
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/65 to-black/35" />
+      </div>
+
+      <div className="relative mx-auto flex min-h-[420px] max-w-7xl items-center px-4 py-12 sm:min-h-[520px] sm:px-6 sm:py-16 lg:px-8">
+        <div
+          role="group"
+          aria-roledescription="diapositiva"
+          aria-label={`${current + 1} de ${SLIDES.length}`}
+          className="max-w-2xl space-y-5"
+        >
+          <p className="text-sm font-semibold text-[var(--amancay-gold-light)]">{slide.eyebrow}</p>
+          <h2 className="font-display text-4xl leading-[1.05] tracking-tight sm:text-6xl">{slide.title}</h2>
+          <p className="text-lg leading-relaxed text-white/90">{slide.description}</p>
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            <Link
+              href={slide.primaryCta.href}
+              className="tap-interactive inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[var(--amancay-gold-light)] px-7 font-semibold text-[var(--ink-primary)] shadow-md hover:bg-white"
             >
-              {/* High-Resolution Background Imagery Overlay */}
-              <div className="absolute inset-0 opacity-30">
-                <img
-                  src={slide.image}
-                  alt=""
-                  className="w-full h-full object-cover object-center transform scale-105 transition-transform duration-10000"
-                />
-              </div>
-
-              {/* Scrim for text readability */}
-              <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/60 to-black/30" />
-            </div>
-          );
-        })}
-
-        {/* Foreground Content */}
-        <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24 w-full">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-            
-            {/* Left Column: Headlines & CTAs */}
-            <div className="lg:col-span-8 space-y-6">
-              
-              {/* Badges placed above or with title */}
-              <div className="flex flex-wrap items-center gap-2.5">
-                <span className={`inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${activeSlide.badgeBg} ${activeSlide.badgeText} shadow-xs`}>
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>{activeSlide.tag}</span>
-                </span>
-                <span className="inline-block px-3 py-0.5 rounded-full bg-white/15 text-[#faf7f0] text-xs font-semibold backdrop-blur-xs">
-                  {activeSlide.accentBadge}
-                </span>
-              </div>
-
-              {/* Main Headline */}
-              <h1 className="font-display text-3xl sm:text-5xl lg:text-7xl font-bold tracking-tight leading-[1.05] text-white">
-                {activeSlide.title}{' '}
-                <span className="text-[#c5a059] block sm:inline font-bold">
-                  {activeSlide.highlight}
-                </span>
-              </h1>
-
-              {/* Subtitle Description */}
-              <p className="text-sm sm:text-lg text-white/90 max-w-2xl leading-relaxed font-sans font-normal">
-                {activeSlide.description}
-              </p>
-
-              {/* Action Buttons */}
-              <div className="pt-2 flex flex-wrap items-center gap-4">
-                <Link
-                  href={activeSlide.primaryCta.href}
-                  className="tap-interactive inline-flex items-center justify-center gap-2 bg-[#a67c3f] hover:bg-[#8c652d] text-white text-sm sm:text-base font-bold uppercase tracking-wider px-7 py-3.5 rounded-full transition-all shadow-md"
-                >
-                  <span>{activeSlide.primaryCta.text}</span>
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-
-                <a
-                  href={activeSlide.secondaryCta.href}
-                  target={activeSlide.secondaryCta.href.startsWith('http') ? '_blank' : '_self'}
-                  rel="noopener noreferrer"
-                  className="tap-interactive inline-flex items-center justify-center gap-2 bg-white/15 hover:bg-white/25 text-white text-sm sm:text-base font-semibold px-6 py-3.5 rounded-full backdrop-blur-xs transition-colors border border-white/20"
-                >
-                  <span>{activeSlide.secondaryCta.text}</span>
-                </a>
-              </div>
-
-              {/* Quick Trust Highlights under CTA */}
-              <div className="pt-4 flex flex-wrap items-center gap-6 text-xs sm:text-sm text-white/85 font-medium border-t border-white/10">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-[#c5a059]" />
-                  <span>Av. Corrientes 3666, Almagro</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-[#c5a059]" />
-                  <span>Retiro en 1 hora sin costo</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-[#25d366]" />
-                  <span>Atención directa por WhatsApp</span>
-                </div>
-              </div>
-
-            </div>
-
-            {/* Right Column: Hero Visual Card */}
-            <div className="lg:col-span-4 hidden lg:block">
-              <div className="relative aspect-[4/5] rounded-xl overflow-hidden bg-black/40 border border-[#a67c3f]/40 shadow-2xl">
-                <img
-                  src={activeSlide.image}
-                  alt={activeSlide.title}
-                  className="w-full h-full object-cover object-center"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                
-                {/* Floating Tag overlay */}
-                <div className="absolute bottom-6 left-6 right-6 p-4 rounded-lg bg-[#14110e]/95 backdrop-blur-xs border border-[#a67c3f]/30 text-white">
-                  <span className="text-xs font-bold uppercase tracking-wider text-[#c5a059] block mb-1">
-                    Garantía Artesanal
-                  </span>
-                  <p className="font-display text-lg font-bold leading-tight">
-                    {activeSlide.highlight}
-                  </p>
-                </div>
-              </div>
-            </div>
-
+              <span>{slide.primaryCta.text}</span>
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+            <Link
+              href={slide.secondaryCta.href}
+              className="tap-interactive inline-flex min-h-12 items-center justify-center rounded-full border border-white/30 bg-white/10 px-6 font-semibold text-white hover:bg-white/20"
+            >
+              {slide.secondaryCta.text}
+            </Link>
           </div>
+          <p className="hidden pt-2 text-sm text-white/85 sm:block">
+            {STORE.address}, {STORE.neighborhood} · Retiro sin costo
+          </p>
         </div>
+      </div>
 
-        {/* Carousel Navigation Arrows */}
+      {/* Controles: anterior, pausa, puntos y siguiente */}
+      <div className="relative mx-auto flex max-w-7xl items-center gap-2 px-4 pb-6 sm:px-6 lg:px-8">
         <button
-          onClick={prevSlide}
-          aria-label="Banner anterior"
-          className="tap-interactive absolute left-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 rounded-full bg-black/50 hover:bg-black/80 text-white flex items-center justify-center transition-colors border border-white/20"
+          type="button"
+          onClick={() => go(current - 1)}
+          aria-label="Destacado anterior"
+          className="tap-interactive flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-black/40 hover:bg-black/70"
         >
-          <ChevronLeft className="w-6 h-6" />
+          <ChevronLeft className="h-5 w-5" aria-hidden="true" />
         </button>
-
         <button
-          onClick={nextSlide}
-          aria-label="Siguiente banner"
-          className="tap-interactive absolute right-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 rounded-full bg-black/50 hover:bg-black/80 text-white flex items-center justify-center transition-colors border border-white/20"
+          type="button"
+          onClick={() => setUserPaused((p) => !p)}
+          aria-label={userPaused ? 'Reanudar destacados' : 'Pausar destacados'}
+          className="tap-interactive flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-black/40 hover:bg-black/70"
         >
-          <ChevronRight className="w-6 h-6" />
+          {userPaused ? <Play className="h-4 w-4" aria-hidden="true" /> : <Pause className="h-4 w-4" aria-hidden="true" />}
         </button>
-
-        {/* Slide Indicators */}
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2.5">
-          {SLIDES.map((_, idx) => (
+        <div className="flex items-center">
+          {SLIDES.map((s, idx) => (
             <button
-              key={idx}
-              onClick={() => setCurrent(idx)}
-              aria-label={`Ir al banner ${idx + 1}`}
-              className={`h-2 rounded-full transition-all duration-300 ${
-                idx === current ? 'w-8 bg-[#c5a059]' : 'w-2 bg-white/40 hover:bg-white/70'
-              }`}
-            />
+              key={s.id}
+              type="button"
+              onClick={() => go(idx)}
+              aria-label={`Ir al destacado ${idx + 1}: ${s.eyebrow}`}
+              aria-current={idx === current ? 'true' : undefined}
+              className="flex h-11 w-8 items-center justify-center"
+            >
+              <span
+                className={`block h-2 rounded-full transition-[width,background-color] duration-300 ${
+                  idx === current ? 'w-6 bg-[var(--amancay-gold-light)]' : 'w-2 bg-white/50'
+                }`}
+              />
+            </button>
           ))}
         </div>
-
+        <button
+          type="button"
+          onClick={() => go(current + 1)}
+          aria-label="Destacado siguiente"
+          className="tap-interactive flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-black/40 hover:bg-black/70"
+        >
+          <ChevronRight className="h-5 w-5" aria-hidden="true" />
+        </button>
       </div>
     </section>
   );

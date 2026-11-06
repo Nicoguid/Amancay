@@ -1,117 +1,112 @@
-/* Gambarino Display Serif */
-@font-face {
-  font-family: 'Gambarino';
-  src: url('https://cdn.fontshare.com/wf/ZINX7PW4XMYISLZAZKYY4QHYYHYNPKAV/Z54IGKTR4PBLA5KTYL3IDQZHFQPJJVNZ/6KBHT5NXCZVM6GHTPKGIR6DXZLQAYIFK.woff2') format('woff2'),
-       url('https://cdn.fontshare.com/wf/ZINX7PW4XMYISLZAZKYY4QHYYHYNPKAV/Z54IGKTR4PBLA5KTYL3IDQZHFQPJJVNZ/6KBHT5NXCZVM6GHTPKGIR6DXZLQAYIFK.woff') format('woff');
-  font-weight: 400;
-  font-display: swap;
-  font-style: normal;
-}
-
-/* General Sans Modern Grotesk */
-@font-face {
-  font-family: 'General Sans';
-  src: url('https://cdn.fontshare.com/wf/MFQT7HFGCR2L5ULQTW6YXYZXXHMPKLJ3/YWQ244D6TACUX5JBKATPOW5I5MGJ3G73/7YY3ZAAE3TRV2LANYOLXNHTPHLXVWTKH.woff2') format('woff2'),
-       url('https://cdn.fontshare.com/wf/MFQT7HFGCR2L5ULQTW6YXYZXXHMPKLJ3/YWQ244D6TACUX5JBKATPOW5I5MGJ3G73/7YY3ZAAE3TRV2LANYOLXNHTPHLXVWTKH.woff') format('woff');
-  font-weight: 400;
-  font-display: swap;
-  font-style: normal;
-}
-@font-face {
-  font-family: 'General Sans';
-  src: url('https://cdn.fontshare.com/wf/3RZHWSNONLLWJK3RLPEKUZOMM56GO4LJ/BPDRY7AHVI3MCDXXVXTQQ76H3UXA63S3/SB2OEB6IKZPRR6JT4GFJ2TFT6HBB6AZN.woff2') format('woff2'),
-       url('https://cdn.fontshare.com/wf/3RZHWSNONLLWJK3RLPEKUZOMM56GO4LJ/BPDRY7AHVI3MCDXXVXTQQ76H3UXA63S3/SB2OEB6IKZPRR6JT4GFJ2TFT6HBB6AZN.woff') format('woff');
-  font-weight: 500;
-  font-display: swap;
-  font-style: normal;
-}
-@font-face {
-  font-family: 'General Sans';
-  src: url('https://cdn.fontshare.com/wf/K46YRH762FH3QJ25IQM3VAXAKCHEXXW4/ISLWQPUZHZF33LRIOTBMFOJL57GBGQ4B/3ZLMEXZEQPLTEPMHTQDAUXP5ZZXCZAEN.woff2') format('woff2'),
-       url('https://cdn.fontshare.com/wf/K46YRH762FH3QJ25IQM3VAXAKCHEXXW4/ISLWQPUZHZF33LRIOTBMFOJL57GBGQ4B/3ZLMEXZEQPLTEPMHTQDAUXP5ZZXCZAEN.woff') format('woff');
-  font-weight: 600;
-  font-display: swap;
-  font-style: normal;
-}
-@font-face {
-  font-family: 'General Sans';
-  src: url('https://cdn.fontshare.com/wf/HQWRGZXZ3773JCVK564C4D7676POG5V5/3CLLQ6F5Y27MYY76374GAKV234L6N5U6/AOK66U424P3637J5QY72K37KAP6C2Z33.woff2') format('woff2');
-  font-weight: 700;
-  font-display: swap;
-  font-style: normal;
-}
-
 @import "tailwindcss";
 
+/* Las fuentes (Gambarino + General Sans) se cargan una sola vez desde layout.tsx. */
+
 :root {
-  /* Amancay Crafts & Fine Perfumery Palette (Strictly ZERO ORANGE) */
+  /* Paleta Amancay */
   --bg-page: #faf7f0;
   --bg-subtle: #f4efe6;
   --surface-card: #ffffff;
-  
+
   --ink-primary: #1a1612;
   --ink-secondary: #2c2520;
   --ink-muted: #5a524a;
-  
-  /* Aristocratic & Craft Accents */
+
+  /* Dorado: #a67c3f solo para bordes, fondos y texto grande.
+     Para texto chico va --ink-accent (6,25:1 sobre blanco, 5,84:1 sobre crema). */
   --amancay-gold: #a67c3f;
   --amancay-gold-light: #c5a059;
+  --ink-accent: #7d5a26;
+  --ink-accent-hover: #5f441c;
   --amancay-wine: #672d35;
   --amancay-wine-light: #873d47;
   --amancay-emerald: #0b3821;
   --amancay-emerald-light: #165b37;
   --amancay-border: #e6dac6;
-  --amancay-whatsapp: #25d366;
-  
+
+  /* WhatsApp: el verde de marca (#25d366) con texto blanco da 1,98:1.
+     Para botones con texto usamos un verde oscuro (6,61:1). */
+  --whatsapp-action: #0b6b3a;
+  --whatsapp-action-hover: #0a5c33;
+
+  --focus-ring: #7d5a26;
+
   --font-display: 'Gambarino', Georgia, serif;
   --font-sans: 'General Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+html {
+  color-scheme: light;
 }
 
 body {
   background-color: var(--bg-page);
   color: var(--ink-primary);
   font-family: var(--font-sans);
+  font-size: 1rem;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
-/* Typography Helpers */
+/* Foco visible y consistente en todo el sitio (WCAG 2.4.7). */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.focus-on-dark:focus-visible,
+.focus-on-dark :focus-visible {
+  outline-color: var(--amancay-gold-light);
+}
+.amancay-dialog :focus-visible {
+  outline-color: var(--focus-ring);
+}
+
+/* Inputs a 16 px en mobile: evita el zoom automático de iOS al tocarlos. */
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Que el header fijo no tape lo que recibe foco o el destino de un ancla. */
+html {
+  scroll-padding-top: 6.5rem;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+/* Typography helpers */
 .font-display {
   font-family: var(--font-display);
-  letter-spacing: -0.025em;
+  letter-spacing: -0.02em;
 }
 
 .font-sans {
   font-family: var(--font-sans);
 }
 
-/* Tactile Micro-Interactions */
+/* Micro-interacciones táctiles */
 .tap-interactive {
-  transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1), background-color 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
-  user-select: none;
+  transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1), background-color 150ms ease, box-shadow 150ms ease,
+    border-color 150ms ease, color 150ms ease;
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .tap-interactive:active {
   transform: scale(0.97);
 }
 
-.tap-interactive-subtle:active {
-  transform: scale(0.985);
-}
-
-/* Smooth Infinite Marquee Animation */
-@keyframes marquee {
-  0% {
-    transform: translateX(0%);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
-}
-
+/* Marquee de marcas */
 @keyframes marqueeReverse {
   0% {
     transform: translateX(-50%);
@@ -121,31 +116,21 @@ body {
   }
 }
 
-.animate-marquee {
-  display: flex;
-  width: max-content;
-  animation: marquee 34s linear infinite;
-}
-
-.animate-marquee:hover {
-  animation-play-state: paused;
-}
-
 .animate-marquee-reverse {
   display: flex;
   width: max-content;
   animation: marqueeReverse 38s linear infinite;
 }
 
-.animate-marquee-reverse:hover {
+.animate-marquee-reverse:hover,
+.marquee-paused .animate-marquee-reverse {
   animation-play-state: paused;
 }
 
-/* Motion Layer */
 @keyframes fadeInUp {
   from {
     opacity: 0.01;
-    transform: translateY(20px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -153,34 +138,35 @@ body {
   }
 }
 
-@keyframes pulseGlow {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 0 8px rgba(37, 211, 102, 0);
-  }
-}
-
 .animate-fade-in-up {
-  animation: fadeInUp 450ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation: fadeInUp 300ms cubic-bezier(0.23, 1, 0.32, 1) both;
 }
 
-.pulse-glow-whatsapp {
-  animation: pulseGlow 2.5s infinite;
+/* Diálogos nativos */
+.amancay-dialog {
+  overscroll-behavior: contain;
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .animate-fade-in-up,
-  .animate-marquee,
-  .animate-marquee-reverse {
-    animation: none !important;
-    transform: none !important;
-    opacity: 1 !important;
+.amancay-dialog::backdrop {
+  backdrop-filter: blur(2px);
+}
+.amancay-drawer[open] {
+  animation: drawerIn 220ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+@keyframes drawerIn {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
   }
 }
+body:has(dialog[open]) {
+  overflow: hidden;
+}
 
-/* Hide scrollbar for carousel but keep functionality */
+/* Carruseles horizontales: sin barra visible (tienen flechas y se pueden deslizar). */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -189,16 +175,18 @@ body {
   scrollbar-width: none;
 }
 
-/* Hide scrollbars across the application while preserving full scrollability */
-html,
-body {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and older Edge */
-}
-
-::-webkit-scrollbar {
-  display: none;
-  width: 0px;
-  height: 0px;
-  background: transparent;
+/* Movimiento reducido: se apaga todo lo decorativo. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .animate-marquee-reverse {
+    animation: none !important;
+    transform: none !important;
+  }
 }

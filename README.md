@@ -1,36 +1,31 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Amancay — tienda online (demo)
 
-## Getting Started
+Demo de tienda para Perfumería Amancay (Av. Corrientes 3666, Almagro). Catálogo con filtros, ficha con variantes, carrito, checkout con retiro o envío y un panel para precios, stock y pedidos. Contexto del producto en [`PRODUCT.md`](./PRODUCT.md).
 
-First, run the development server:
+## Correr el proyecto
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev     # http://localhost:3000
+npm run lint
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Cómo está armado
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Next.js 16 (App Router), React 19, Tailwind v4, TypeScript.
+- Sin backend todavía: catálogo, carrito y pedidos viven en el `localStorage` de cada navegador (`src/context/StoreContext.tsx`). Lo que se cargue en el panel lo ve solo ese navegador.
+- Datos del comercio, promo, tarifas de envío y descuento por transferencia: `src/lib/storeConfig.ts`. Todo lo marcado `PLACEHOLDER` hay que confirmarlo con la clienta.
+- Datos de muestra: `src/lib/mockData.ts`. Las fotos son de Unsplash y hay que reemplazarlas.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Panel del local
 
-## Learn More
+`/admin` (linkeado desde el footer). Sin login: es una demo.
 
-To learn more about Next.js, take a look at the following resources:
+- **Precios:** aumento por rubro, marca o todo el catálogo, con vista previa y deshacer. Planilla CSV para editar en Excel (separador `;`, se actualiza por SKU, las celdas vacías no se tocan).
+- **Productos y stock:** edición de precio base (las variantes mantienen su diferencia) y stock por variante.
+- **Pedidos** y **Resumen** con stock bajo.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Pendiente para producción
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Backend y base de datos, login del panel, Mercado Pago real, proveedor de envíos, facturación (ARCA) y fotos propias.

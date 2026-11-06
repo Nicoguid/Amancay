@@ -1,62 +1,64 @@
 'use client';
 
-import React from 'react';
+import { useState } from 'react';
+import { Pause, Play } from 'lucide-react';
+import { PROMO, PROMO_UNTIL_LABEL, STORE } from '@/lib/storeConfig';
+import { usePromoActive } from '@/lib/usePromo';
 
-interface MarqueeTickerProps {
-  variant?: 'top' | 'accent' | 'brands';
+/** Barra superior fija (sin animación): un solo mensaje, el más útil. */
+export function AnnouncementBar() {
+  const promoActive = usePromoActive();
+  return (
+    <aside aria-label="Aviso" className="bg-[var(--ink-primary)] px-4 py-2 text-center text-sm text-[var(--bg-page)]">
+      {promoActive ? (
+        <p>
+          <span className="font-semibold">{PROMO.title}</span>
+          <span className="hidden sm:inline"> hasta el {PROMO_UNTIL_LABEL}</span>
+        </p>
+      ) : (
+        <p>
+          Retiro sin costo en {STORE.address}
+          <span className="hidden sm:inline"> · Envíos a CABA y a todo el país</span>
+        </p>
+      )}
+    </aside>
+  );
 }
 
-export function MarqueeTicker({ variant = 'top' }: MarqueeTickerProps) {
-  if (variant === 'top') {
-    const items = [
-      '💳 3 CUOTAS SIN INTERÉS CON BANCO GALICIA (EXCLUSIVO MES DE NOVIEMBRE)',
-      '🛵 ENTREGAS EN EL DÍA EN CABA POR MOTOMENSAJERÍA',
-      '📦 ENVÍOS A TODO EL PAÍS POR CORREO ARGENTINO (A CARGO DEL COMPRADOR)',
-      '🧉 MATES IMPERIALES DE CALABAZA Y ALGARROBO SELECCIONADO',
-      '✨ PERFUMERÍA FINA & FRAGANCIAS DE AUTOR AMANCAY',
-      '📍 RETIRO EN MOSTRADOR: Av. Corrientes 3666 (Almagro, CABA)',
-      '📲 PEDIDOS Y ASESORAMIENTO DIRECTO POR WHATSAPP: +54 9 11 3674-0676'
-    ];
+const BRANDS = ['Amancay Orfebrería', 'Kevin', "Paula Cahen d'Anvers", 'Colbert', 'Amancay Tradición', 'Perfumería Amancay'];
 
-    return (
-      <div className="bg-[#1a1612] text-[#faf7f0] border-b border-[#2c2520] overflow-x-clip py-2.5 text-xs sm:text-sm font-semibold tracking-wide select-none max-w-full">
-        <div className="animate-marquee flex items-center gap-10 whitespace-nowrap">
-          {items.concat(items).map((text, idx) => (
-            <span key={idx} className="flex items-center gap-8">
-              <span className="w-2 h-2 rounded-full bg-[#a67c3f] inline-block shadow-xs" />
-              <span>{text}</span>
-            </span>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (variant === 'brands') {
-    const brands = [
-      'Amancay Orfebrería',
-      'Kevin',
-      'Banco Galicia (3 Cuotas Noviembre)',
-      'Paula Cahen d\'Anvers',
-      'Alpaca Cincelada',
-      'Colbert',
-      'Calabazas Seleccionadas',
-      'Acero Quirúrgico 304'
-    ];
-
-    return (
-      <div className="bg-[#f4efe6] py-5 border-y border-[#e6dac6] overflow-x-clip select-none max-w-full">
+/** Cinta de marcas con botón de pausa (WCAG 2.2.2). Se detiene sola con movimiento reducido. */
+export function BrandsTicker() {
+  const [paused, setPaused] = useState(false);
+  return (
+    <section
+      aria-label="Marcas que trabajamos"
+      className={`relative border-y border-[var(--amancay-border)] bg-[var(--bg-subtle)] py-5 ${paused ? 'marquee-paused' : ''}`}
+    >
+      <ul className="sr-only">
+        {BRANDS.map((brand) => (
+          <li key={brand}>{brand}</li>
+        ))}
+      </ul>
+      <div className="overflow-x-clip" aria-hidden="true">
         <div className="animate-marquee-reverse flex items-center gap-12 whitespace-nowrap">
-          {brands.concat(brands).map((brand, idx) => (
-            <span key={idx} className="flex items-center gap-8 font-display text-xl sm:text-2xl text-[#1a1612]/85 hover:text-[#0b3821] transition-colors">
+          {BRANDS.concat(BRANDS).map((brand, idx) => (
+            <span key={idx} className="flex items-center gap-12 font-display text-xl text-[var(--ink-secondary)] sm:text-2xl">
               <span>{brand}</span>
-              <span className="w-2 h-2 rounded-full bg-[#672d35] inline-block" />
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--amancay-wine)]" />
             </span>
           ))}
         </div>
       </div>
-    );
-  }
-
-  return null;
+      <button
+        type="button"
+        onClick={() => setPaused((p) => !p)}
+        aria-pressed={paused}
+        className="tap-interactive absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--amancay-border)] bg-white text-[var(--ink-primary)] shadow-sm"
+      >
+        {paused ? <Play className="h-4 w-4" aria-hidden="true" /> : <Pause className="h-4 w-4" aria-hidden="true" />}
+        <span className="sr-only">{paused ? 'Reanudar cinta de marcas' : 'Pausar cinta de marcas'}</span>
+      </button>
+    </section>
+  );
 }
