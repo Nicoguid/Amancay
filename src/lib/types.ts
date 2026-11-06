@@ -40,12 +40,13 @@ export type OrderStatus =
   | 'entregado';
 
 export type ShippingMethod = 'pickup' | 'moto_caba' | 'correo_argentino';
-export type PaymentMethod = 'mercadopago' | 'transferencia' | 'whatsapp';
+export type PaymentMethod = 'mercadopago' | 'transferencia' | 'mostrador';
 
 export interface OrderItem {
   productId: string;
   productName: string;
   productImage: string;
+  variantId?: string;
   variantName?: string;
   quantity: number;
   unitPrice: number;

@@ -1,299 +1,434 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Product, Order, OrderStatus, ProductCategory, ProductVariant } from '@/lib/types';
-import { INITIAL_PRODUCTS, INITIAL_ORDERS } from '@/lib/mockData';
+/**
+ * Store de la demo: catálogo, pedidos y carrito en localStorage.
+ *
+ * Es un store externo leído con useSyncExternalStore:
+ * - el servidor y el primer render del cliente usan los datos iniciales (sin errores de hidratación);
+ * - después React vuelve a renderizar con lo guardado en localStorage;
+ * - las acciones son funciones de módulo, estables, que devuelven su resultado al instante.
+ *
+ * El carrito guarda solo ids y cantidades: precio y stock se leen siempre del catálogo vigente.
+ */
+
+import { useMemo, useSyncExternalStore } from 'react';
+import type { Order, OrderStatus, Product, ProductCategory, ProductVariant } from '@/lib/types';
+import { INITIAL_ORDERS, INITIAL_PRODUCTS } from '@/lib/mockData';
+import { slugify } from '@/lib/storeConfig';
+
+// ---------- Tipos ----------
+
+interface StoredCartItem {
+  productId: string;
+  variantId?: string;
+  quantity: number;
+}
+
+interface StoreState {
+  products: Product[];
+  orders: Order[];
+  cart: StoredCartItem[];
+}
 
 export interface CartItem {
-  id: string; // unique item key: productId + variantId
+  id: string;
   product: Product;
   selectedVariant?: ProductVariant;
   quantity: number;
   unitPrice: number;
+  /** Unidades disponibles para esta línea. */
+  available: number;
 }
 
-interface StoreContextType {
-  products: Product[];
-  orders: Order[];
-  cart: CartItem[];
-  cartCount: number;
-  cartTotal: number;
-  addToCart: (product: Product, quantity?: number, variant?: ProductVariant) => void;
-  removeFromCart: (cartItemId: string) => void;
-  updateCartQuantity: (cartItemId: string, delta: number) => void;
-  clearCart: () => void;
-  // Admin Product Actions
-  updateProduct: (id: string, updated: Partial<Product>) => void;
-  addProduct: (newProd: Omit<Product, 'id'>) => void;
-  toggleProductActive: (id: string) => void;
-  applyMassPercentageIncrease: (
-    filterType: 'all' | 'category' | 'brand',
-    filterValue: string,
-    percentage: number
-  ) => { affectedCount: number };
-  importProductsFromCsvData: (importedProducts: Partial<Product>[]) => number;
-  // Admin Order Actions
-  createOrder: (orderInput: Omit<Order, 'id' | 'orderNumber' | 'createdAt'>) => Order;
-  updateOrderStatus: (orderId: string, status: OrderStatus) => void;
+export type MassFilter = 'all' | 'category' | 'brand';
+
+// ---------- Helpers puros ----------
+
+const roundTo50 = (value: number) => Math.round(value / 50) * 50;
+
+/** Las variantes valen precio base + modificador; el stock del producto es la suma de sus variantes. */
+export function normalizeProduct(product: Product): Product {
+  if (!product.variants || product.variants.length === 0) return product;
+  const variants = product.variants.map((v) => ({
+    ...v,
+    price: Math.max(0, product.price + (v.priceModifier ?? 0)),
+    stock: Math.max(0, Math.floor(v.stock)),
+  }));
+  return { ...product, variants, stock: variants.reduce((sum, v) => sum + v.stock, 0) };
 }
 
-const StoreContext = createContext<StoreContextType | undefined>(undefined);
+export function availableStock(product: Product, variant?: ProductVariant): number {
+  return variant ? variant.stock : product.stock;
+}
 
-const STORAGE_KEYS = {
-  PRODUCTS: 'amancay_products_v2',
-  ORDERS: 'amancay_orders_v2',
-  CART: 'amancay_cart_v2'
+/** Precio mínimo (para mostrar "Desde $X" cuando las variantes tienen precios distintos). */
+export function priceRange(product: Product): { min: number; max: number } {
+  const prices = product.variants?.length ? product.variants.map((v) => v.price) : [product.price];
+  return { min: Math.min(...prices), max: Math.max(...prices) };
+}
+
+export function matchesMassFilter(product: Product, filterType: MassFilter, filterValue: string) {
+  if (filterType === 'all') return true;
+  if (filterType === 'category') return product.category === filterValue;
+  return product.brand.toLowerCase() === filterValue.toLowerCase();
+}
+
+/** Mismo cálculo para la vista previa y para el aumento real. */
+export function applyPercentage(product: Product, percentage: number): Product {
+  const factor = 1 + percentage / 100;
+  return normalizeProduct({
+    ...product,
+    price: roundTo50(product.price * factor),
+    originalPrice: product.originalPrice ? roundTo50(product.originalPrice * factor) : undefined,
+    variants: product.variants?.map((v) => ({ ...v, priceModifier: roundTo50((v.priceModifier ?? 0) * factor) })),
+  });
+}
+
+const cartLineId = (productId: string, variantId?: string) => (variantId ? `${productId}-${variantId}` : productId);
+
+// ---------- Persistencia ----------
+
+const STORAGE_VERSION = 'v3';
+const KEYS = {
+  products: `amancay_products_${STORAGE_VERSION}`,
+  orders: `amancay_orders_${STORAGE_VERSION}`,
+  cart: `amancay_cart_${STORAGE_VERSION}`,
+};
+const LEGACY_KEYS = { products: 'amancay_products_v2', orders: 'amancay_orders_v2' };
+
+const SERVER_STATE: StoreState = {
+  products: INITIAL_PRODUCTS.map(normalizeProduct),
+  orders: INITIAL_ORDERS,
+  cart: [],
 };
 
-export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
+function readJson<T>(key: string): T | null {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
 
-  // Load from localStorage on client mount
-  useEffect(() => {
-    try {
-      const storedProds = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
-      if (storedProds) {
-        setProducts(JSON.parse(storedProds));
-      } else {
-        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(INITIAL_PRODUCTS));
-      }
+function migrateOrder(order: Order): Order {
+  // v2 usaba "whatsapp" para "pagar en el local".
+  const paymentMethod = (order.paymentMethod as string) === 'whatsapp' ? 'mostrador' : order.paymentMethod;
+  return { ...order, paymentMethod, orderNumber: order.orderNumber.replace(/^#/, '') };
+}
 
-      const storedOrders = localStorage.getItem(STORAGE_KEYS.ORDERS);
-      if (storedOrders) {
-        setOrders(JSON.parse(storedOrders));
-      } else {
-        localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(INITIAL_ORDERS));
-      }
+function loadState(): StoreState {
+  const products =
+    readJson<Product[]>(KEYS.products) ?? readJson<Product[]>(LEGACY_KEYS.products) ?? SERVER_STATE.products;
+  const orders = readJson<Order[]>(KEYS.orders) ?? readJson<Order[]>(LEGACY_KEYS.orders) ?? SERVER_STATE.orders;
+  const cart = readJson<StoredCartItem[]>(KEYS.cart) ?? [];
+  return {
+    products: products.map(normalizeProduct),
+    orders: orders.map(migrateOrder),
+    cart: cart.filter((item) => item && typeof item.productId === 'string' && item.quantity > 0),
+  };
+}
 
-      const storedCart = localStorage.getItem(STORAGE_KEYS.CART);
-      if (storedCart) {
-        setCart(JSON.parse(storedCart));
-      }
-    } catch (e) {
-      console.error('Error loading store data:', e);
-    } finally {
-      setIsLoaded(true);
+function persist(next: StoreState, prev: StoreState) {
+  try {
+    if (next.products !== prev.products) window.localStorage.setItem(KEYS.products, JSON.stringify(next.products));
+    if (next.orders !== prev.orders) window.localStorage.setItem(KEYS.orders, JSON.stringify(next.orders));
+    if (next.cart !== prev.cart) window.localStorage.setItem(KEYS.cart, JSON.stringify(next.cart));
+  } catch {
+    // Modo incógnito o cuota llena: la demo sigue funcionando en memoria.
+  }
+}
+
+// ---------- Store externo ----------
+
+let clientState: StoreState | null = null;
+const listeners = new Set<() => void>();
+
+function getSnapshot(): StoreState {
+  if (clientState === null) clientState = loadState();
+  return clientState;
+}
+
+function getServerSnapshot(): StoreState {
+  return SERVER_STATE;
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  const onStorage = (event: StorageEvent) => {
+    if (event.key && Object.values(KEYS).includes(event.key)) {
+      clientState = loadState();
+      listeners.forEach((l) => l());
     }
-  }, []);
-
-  // Save changes to localStorage
-  useEffect(() => {
-    if (!isLoaded) return;
-    try {
-      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
-    } catch (e) {
-      console.error('Error saving products:', e);
-    }
-  }, [products, isLoaded]);
-
-  useEffect(() => {
-    if (!isLoaded) return;
-    try {
-      localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
-    } catch (e) {
-      console.error('Error saving orders:', e);
-    }
-  }, [orders, isLoaded]);
-
-  useEffect(() => {
-    if (!isLoaded) return;
-    try {
-      localStorage.setItem(STORAGE_KEYS.CART, JSON.stringify(cart));
-    } catch (e) {
-      console.error('Error saving cart:', e);
-    }
-  }, [cart, isLoaded]);
-
-  // Cart operations
-  const addToCart = (product: Product, quantity = 1, variant?: ProductVariant) => {
-    const unitPrice = variant ? variant.price : product.price;
-    const cartItemId = variant ? `${product.id}-${variant.id}` : product.id;
-
-    setCart((prev) => {
-      const existing = prev.find((item) => item.id === cartItemId);
-      if (existing) {
-        return prev.map((item) =>
-          item.id === cartItemId ? { ...item, quantity: item.quantity + quantity } : item
-        );
-      }
-      return [...prev, { id: cartItemId, product, selectedVariant: variant, quantity, unitPrice }];
-    });
   };
-
-  const removeFromCart = (cartItemId: string) => {
-    setCart((prev) => prev.filter((item) => item.id !== cartItemId));
+  window.addEventListener('storage', onStorage);
+  return () => {
+    listeners.delete(listener);
+    window.removeEventListener('storage', onStorage);
   };
+}
 
-  const updateCartQuantity = (cartItemId: string, delta: number) => {
-    setCart((prev) => {
-      return prev
-        .map((item) => {
-          if (item.id === cartItemId) {
-            const newQty = item.quantity + delta;
-            return newQty > 0 ? { ...item, quantity: newQty } : null;
-          }
-          return item;
-        })
-        .filter(Boolean) as CartItem[];
-    });
-  };
+function setState(updater: (state: StoreState) => StoreState) {
+  const prev = getSnapshot();
+  const next = updater(prev);
+  if (next === prev) return;
+  clientState = next;
+  persist(next, prev);
+  listeners.forEach((l) => l());
+}
 
-  const clearCart = () => {
-    setCart([]);
-  };
+// ---------- Acciones ----------
 
-  const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
-  const cartTotal = cart.reduce((acc, item) => acc + item.unitPrice * item.quantity, 0);
+function findLine(state: StoreState, productId: string, variantId?: string) {
+  const product = state.products.find((p) => p.id === productId);
+  const variant = variantId ? product?.variants?.find((v) => v.id === variantId) : undefined;
+  return { product, variant };
+}
 
-  // Admin Actions
-  const updateProduct = (id: string, updated: Partial<Product>) => {
-    setProducts((prev) =>
-      prev.map((prod) => (prod.id === id ? { ...prod, ...updated } : prod))
-    );
-  };
+/** Devuelve cuántas unidades se agregaron (0 si no hay stock). */
+function addToCart(product: Product, quantity = 1, variant?: ProductVariant): number {
+  let added = 0;
+  setState((state) => {
+    const { product: current, variant: currentVariant } = findLine(state, product.id, variant?.id);
+    if (!current || !current.active) return state;
+    const available = availableStock(current, currentVariant);
+    const existing = state.cart.find((i) => i.productId === product.id && i.variantId === variant?.id);
+    const inCart = existing?.quantity ?? 0;
+    added = Math.max(0, Math.min(quantity, available - inCart));
+    if (added === 0) return state;
+    const cart = existing
+      ? state.cart.map((i) => (i === existing ? { ...i, quantity: i.quantity + added } : i))
+      : [...state.cart, { productId: product.id, variantId: variant?.id, quantity: added }];
+    return { ...state, cart };
+  });
+  return added;
+}
 
-  const addProduct = (newProd: Omit<Product, 'id'>) => {
-    const id = `prod-${Date.now()}`;
-    const product: Product = { ...newProd, id };
-    setProducts((prev) => [product, ...prev]);
-  };
+function removeFromCart(cartItemId: string) {
+  setState((state) => ({
+    ...state,
+    cart: state.cart.filter((i) => cartLineId(i.productId, i.variantId) !== cartItemId),
+  }));
+}
 
-  const toggleProductActive = (id: string) => {
-    setProducts((prev) =>
-      prev.map((prod) => (prod.id === id ? { ...prod, active: !prod.active } : prod))
-    );
-  };
-
-  // Mass price adjustment (Percentage)
-  const applyMassPercentageIncrease = (
-    filterType: 'all' | 'category' | 'brand',
-    filterValue: string,
-    percentage: number
-  ) => {
-    const factor = 1 + percentage / 100;
-    let affectedCount = 0;
-
-    setProducts((prev) =>
-      prev.map((prod) => {
-        let matches = false;
-        if (filterType === 'all') matches = true;
-        if (filterType === 'category' && prod.category === filterValue) matches = true;
-        if (filterType === 'brand' && prod.brand.toLowerCase() === filterValue.toLowerCase()) matches = true;
-
-        if (!matches) return prod;
-        affectedCount++;
-
-        // Round to clean tens or hundreds (e.g. 38500 * 1.1 = 42350 -> rounded to nearest 50 or 100)
-        const roundPrice = (p: number) => Math.round((p * factor) / 50) * 50;
-
-        const newBasePrice = roundPrice(prod.price);
-        const newOriginalPrice = prod.originalPrice ? roundPrice(prod.originalPrice) : undefined;
-
-        const newVariants = prod.variants?.map((v) => ({
-          ...v,
-          price: roundPrice(v.price)
-        }));
-
-        return {
-          ...prod,
-          price: newBasePrice,
-          originalPrice: newOriginalPrice,
-          variants: newVariants
-        };
+function updateCartQuantity(cartItemId: string, delta: number) {
+  setState((state) => {
+    const cart = state.cart
+      .map((item) => {
+        if (cartLineId(item.productId, item.variantId) !== cartItemId) return item;
+        const { product, variant } = findLine(state, item.productId, item.variantId);
+        const max = product ? availableStock(product, variant) : 0;
+        return { ...item, quantity: Math.min(max, item.quantity + delta) };
       })
-    );
+      .filter((item) => item.quantity > 0);
+    return { ...state, cart };
+  });
+}
 
-    return { affectedCount };
+function clearCart() {
+  setState((state) => (state.cart.length ? { ...state, cart: [] } : state));
+}
+
+function updateProduct(id: string, updated: Partial<Product>) {
+  setState((state) => ({
+    ...state,
+    products: state.products.map((p) => (p.id === id ? normalizeProduct({ ...p, ...updated }) : p)),
+  }));
+}
+
+function addProduct(newProduct: Omit<Product, 'id'>): Product {
+  const product = normalizeProduct({ ...newProduct, id: `prod-${Date.now()}` });
+  setState((state) => ({ ...state, products: [product, ...state.products] }));
+  return product;
+}
+
+function toggleProductActive(id: string) {
+  setState((state) => ({
+    ...state,
+    products: state.products.map((p) => (p.id === id ? { ...p, active: !p.active } : p)),
+  }));
+}
+
+/** Aplica el aumento y devuelve los productos previos para poder deshacer. */
+function applyMassPercentageIncrease(filterType: MassFilter, filterValue: string, percentage: number) {
+  const previous = getSnapshot().products;
+  let affectedCount = 0;
+  setState((state) => ({
+    ...state,
+    products: state.products.map((p) => {
+      if (!matchesMassFilter(p, filterType, filterValue)) return p;
+      affectedCount++;
+      return applyPercentage(p, percentage);
+    }),
+  }));
+  return { affectedCount, previous };
+}
+
+function restoreProducts(products: Product[]) {
+  setState((state) => ({ ...state, products }));
+}
+
+export interface CsvProductRow {
+  sku?: string;
+  id?: string;
+  name?: string;
+  brand?: string;
+  category?: ProductCategory;
+  price?: number;
+  stock?: number;
+}
+
+/** Actualiza por SKU (o ID). Solo pisa los campos que vienen con valor. */
+function importProductsFromCsvData(rows: CsvProductRow[]) {
+  let updated = 0;
+  let created = 0;
+  setState((state) => {
+    const products = [...state.products];
+    for (const row of rows) {
+      const index = products.findIndex((p) => (row.sku && p.sku === row.sku) || (row.id && p.id === row.id));
+      if (index >= 0) {
+        const current = products[index];
+        const patch: Partial<Product> = {};
+        if (row.name) patch.name = row.name;
+        if (row.brand) patch.brand = row.brand;
+        if (row.category) patch.category = row.category;
+        if (row.price !== undefined) patch.price = row.price;
+        // Con variantes, el stock se maneja por variante y no se pisa desde la planilla.
+        if (row.stock !== undefined && !current.variants?.length) patch.stock = row.stock;
+        products[index] = normalizeProduct({ ...current, ...patch });
+        updated++;
+      } else if (row.name && row.price !== undefined && row.category) {
+        products.unshift({
+          id: `prod-${Date.now()}-${created}`,
+          name: row.name,
+          slug: slugify(row.name),
+          category: row.category,
+          brand: row.brand || 'Amancay',
+          description: '',
+          price: row.price,
+          stock: row.stock ?? 0,
+          images: [],
+          sku: row.sku || `SKU-${Date.now()}-${created}`,
+          active: true,
+        });
+        created++;
+      }
+    }
+    return { ...state, products };
+  });
+  return { updated, created };
+}
+
+export type CreateOrderResult = { ok: true; order: Order } | { ok: false; error: string };
+
+/** Crea el pedido con los precios vigentes, valida y descuenta stock, y vacía el carrito. */
+function createOrder(input: Omit<Order, 'id' | 'orderNumber' | 'createdAt'>): CreateOrderResult {
+  const state = getSnapshot();
+  for (const item of input.items) {
+    const product = state.products.find((p) => p.id === item.productId);
+    const variant = product?.variants?.find((v) => v.id === item.variantId);
+    if (!product || availableStock(product, variant) < item.quantity) {
+      return { ok: false, error: `No hay stock suficiente de ${item.productName}. Revisá el carrito.` };
+    }
+  }
+
+  const order: Order = {
+    ...input,
+    id: `ord-${Date.now()}`,
+    orderNumber: `AMC-${String(Date.now()).slice(-6)}`,
+    createdAt: new Date().toISOString(),
   };
 
-  // CSV Import (Bulk updates)
-  const importProductsFromCsvData = (importedProducts: Partial<Product>[]) => {
-    let count = 0;
-    setProducts((prev) => {
-      const map = new Map(prev.map((p) => [p.sku || p.id, p]));
-      importedProducts.forEach((item) => {
-        const key = item.sku || item.id;
-        if (key && map.has(key)) {
-          const current = map.get(key)!;
-          map.set(key, { ...current, ...item });
-          count++;
-        } else if (item.name && item.price) {
-          const newId = `prod-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-          map.set(newId, {
-            id: newId,
-            name: item.name,
-            slug: item.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-            category: (item.category as ProductCategory) || 'mates',
-            brand: item.brand || 'Amancay',
-            description: item.description || '',
-            price: Number(item.price),
-            stock: Number(item.stock || 10),
-            images: item.images || ['https://images.unsplash.com/photo-1523293182086-7651a899d37f?auto=format&fit=crop&w=800&q=80'],
-            sku: item.sku || `SKU-${Date.now()}`,
-            active: true
-          });
-          count++;
-        }
-      });
-      return Array.from(map.values());
-    });
-    return count;
-  };
+  setState((s) => ({
+    products: s.products.map((product) => {
+      const lines = input.items.filter((i) => i.productId === product.id);
+      if (!lines.length) return product;
+      if (product.variants?.length) {
+        return normalizeProduct({
+          ...product,
+          variants: product.variants.map((v) => {
+            const sold = lines.filter((l) => l.variantId === v.id).reduce((n, l) => n + l.quantity, 0);
+            return sold ? { ...v, stock: v.stock - sold } : v;
+          }),
+        });
+      }
+      return { ...product, stock: product.stock - lines.reduce((n, l) => n + l.quantity, 0) };
+    }),
+    orders: [order, ...s.orders],
+    cart: [],
+  }));
+  return { ok: true, order };
+}
 
-  // Order actions
-  const createOrder = (orderInput: Omit<Order, 'id' | 'orderNumber' | 'createdAt'>) => {
-    const randomNum = Math.floor(1000 + Math.random() * 9000);
-    const newOrder: Order = {
-      ...orderInput,
-      id: `ord-${Date.now()}`,
-      orderNumber: `#AMC-${randomNum}`,
-      createdAt: new Date().toISOString()
-    };
+function updateOrderStatus(orderId: string, status: OrderStatus) {
+  setState((state) => ({
+    ...state,
+    orders: state.orders.map((o) => (o.id === orderId ? { ...o, status } : o)),
+  }));
+}
 
-    setOrders((prev) => [newOrder, ...prev]);
-    clearCart();
-    return newOrder;
-  };
+const actions = {
+  addToCart,
+  removeFromCart,
+  updateCartQuantity,
+  clearCart,
+  updateProduct,
+  addProduct,
+  toggleProductActive,
+  applyMassPercentageIncrease,
+  restoreProducts,
+  importProductsFromCsvData,
+  createOrder,
+  updateOrderStatus,
+};
 
-  const updateOrderStatus = (orderId: string, status: OrderStatus) => {
-    setOrders((prev) =>
-      prev.map((ord) => (ord.id === orderId ? { ...ord, status } : ord))
-    );
-  };
+// ---------- Hooks ----------
 
-  return (
-    <StoreContext.Provider
-      value={{
-        products,
-        orders,
-        cart,
-        cartCount,
-        cartTotal,
-        addToCart,
-        removeFromCart,
-        updateCartQuantity,
-        clearCart,
-        updateProduct,
-        addProduct,
-        toggleProductActive,
-        applyMassPercentageIncrease,
-        importProductsFromCsvData,
-        createOrder,
-        updateOrderStatus
-      }}
-    >
-      {children}
-    </StoreContext.Provider>
+const noopSubscribe = () => () => {};
+
+/** false en el servidor y en el primer render; true cuando ya se leyó localStorage. */
+export function useHydrated(): boolean {
+  return useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false
   );
 }
 
 export function useStore() {
-  const context = useContext(StoreContext);
-  if (!context) {
-    throw new Error('useStore must be used within a StoreProvider');
-  }
-  return context;
+  const state = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const isHydrated = useHydrated();
+
+  const cart = useMemo<CartItem[]>(() => {
+    const lines: CartItem[] = [];
+    for (const item of state.cart) {
+      const product = state.products.find((p) => p.id === item.productId);
+      if (!product || !product.active) continue;
+      const variant = item.variantId ? product.variants?.find((v) => v.id === item.variantId) : undefined;
+      if (item.variantId && !variant) continue;
+      const available = availableStock(product, variant);
+      lines.push({
+        id: cartLineId(product.id, variant?.id),
+        product,
+        selectedVariant: variant,
+        quantity: Math.min(item.quantity, available),
+        unitPrice: variant ? variant.price : product.price,
+        available,
+      });
+    }
+    return lines.filter((l) => l.quantity > 0);
+  }, [state.cart, state.products]);
+
+  const cartCount = cart.reduce((n, item) => n + item.quantity, 0);
+  const cartTotal = cart.reduce((n, item) => n + item.unitPrice * item.quantity, 0);
+
+  return {
+    products: state.products,
+    orders: state.orders,
+    cart,
+    cartCount,
+    cartTotal,
+    isHydrated,
+    ...actions,
+  };
 }
