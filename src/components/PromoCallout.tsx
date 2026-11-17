@@ -14,10 +14,10 @@ export function PromoCallout() {
         <div className="flex items-start gap-5">
           <span
             aria-hidden="true"
-            className="hidden h-16 w-16 shrink-0 flex-col items-center justify-center rounded-full border border-[var(--amancay-gold-light)] font-display leading-none text-[var(--amancay-gold-light)] sm:flex"
+            className="hidden h-16 w-16 shrink-0 flex-col items-center justify-center rounded-xl bg-[var(--brand-gold)] font-display leading-none text-[var(--ink-on-gold)] sm:flex"
           >
             <span className="text-2xl">{PROMO.installments}</span>
-            <span className="text-[10px] font-sans font-semibold">cuotas</span>
+            <span className="font-sans text-[12px] font-bold">cuotas</span>
           </span>
           <div className="max-w-2xl space-y-2">
             <h2 id="promo-title" className="font-display text-[28px] leading-tight sm:text-[32px]">
@@ -30,7 +30,7 @@ export function PromoCallout() {
         </div>
         <Link
           href="/catalogo"
-          className="tap-interactive inline-flex min-h-12 shrink-0 items-center justify-center rounded-full bg-[var(--bg-page)] px-8 font-semibold text-[var(--brand-leather)] hover:bg-white"
+          className="btn btn-lg btn-gold shrink-0"
         >
           Ver el catálogo
         </Link>

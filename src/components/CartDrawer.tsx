@@ -7,6 +7,7 @@ import { Dialog } from './Dialog';
 import { ProductImage } from './ProductImage';
 import { STORE, formatPrice, whatsappUrl } from '@/lib/storeConfig';
 import { CATEGORIES } from '@/lib/categories';
+import { cartWhatsappMessage } from '@/lib/cartMessage';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -15,22 +16,6 @@ interface CartDrawerProps {
 
 export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
   const { cart, removeFromCart, updateCartQuantity, cartTotal, cartCount } = useStore();
-
-  const whatsappMessage = () => {
-    const lines = cart.map((item, index) => {
-      const variant = item.selectedVariant ? ` (${item.selectedVariant.name})` : '';
-      return `${index + 1}. ${item.product.name}${variant} x ${item.quantity} = ${formatPrice(item.unitPrice * item.quantity)}`;
-    });
-    return [
-      'Hola Amancay, quiero consultar por este pedido:',
-      '',
-      ...lines,
-      '',
-      `Total productos: ${formatPrice(cartTotal)}`,
-      '',
-      '¿Tienen stock para coordinar retiro o envío?',
-    ].join('\n');
-  };
 
   return (
     <Dialog
@@ -51,27 +36,30 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
             <Link
               href="/checkout"
               onClick={onClose}
-              className="tap-interactive flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[var(--brand-leather)] px-4 font-semibold text-white hover:bg-[var(--brand-leather-hover)]"
+              className="btn btn-lg btn-primary w-full"
             >
-              <span>Ir a pagar</span>
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              <span>Finalizar compra</span>
+              <ArrowRight className="arrow-nudge h-4 w-4" aria-hidden="true" />
             </Link>
             <a
-              href={whatsappUrl(whatsappMessage())}
+              href={whatsappUrl(cartWhatsappMessage(cart, cartTotal))}
               target="_blank"
               rel="noopener noreferrer"
-              className="tap-interactive flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[var(--whatsapp-action)] px-4 font-semibold text-white hover:bg-[var(--whatsapp-action-hover)]"
+              className="btn btn-lg btn-whatsapp w-full"
             >
               <MessageCircle className="h-4 w-4" aria-hidden="true" />
               <span>Pedir por WhatsApp</span>
             </a>
+            <Link href="/carrito" onClick={onClose} className="link-brass flex min-h-11 items-center justify-center text-sm">
+              Ver el carrito completo y elegir la entrega
+            </Link>
           </div>
         ) : undefined
       }
     >
       {cart.length === 0 ? (
         <div className="flex h-full flex-col items-center justify-center py-12 text-center">
-          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-[var(--amancay-border)] bg-[var(--bg-page)] text-[var(--ink-accent)]">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-[var(--brand-gold)] text-[var(--ink-on-gold)]">
             <ShoppingBag className="h-8 w-8" aria-hidden="true" />
           </div>
           <p className="mb-2 font-display text-2xl text-[var(--ink-primary)]">Tu carrito está vacío</p>
@@ -82,7 +70,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                 key={link.href}
                 href={link.href}
                 onClick={onClose}
-                className="tap-interactive flex min-h-11 items-center justify-center rounded-full border border-[var(--amancay-border)] bg-white px-5 text-sm font-semibold text-[var(--ink-primary)] hover:border-[var(--brand-olive)]"
+                className="chip"
               >
                 {link.label}
               </Link>
@@ -98,7 +86,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                 alt=""
                 width={72}
                 height={72}
-                className="photo-on-linen h-18 w-18 shrink-0 rounded bg-[var(--bg-subtle)] object-contain p-1.5"
+                className="photo-on-linen h-18 w-18 shrink-0 rounded-md bg-[var(--bg-sunken)] object-contain p-1.5"
               />
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
@@ -106,20 +94,20 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                   <button
                     type="button"
                     onClick={() => removeFromCart(item.id)}
-                    className="-mr-2 -mt-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[var(--ink-muted)] hover:bg-[var(--bg-subtle)] hover:text-[var(--amancay-wine)]"
+                    className="-mr-2 -mt-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--ink-muted)] hover:bg-[var(--bg-subtle)] hover:text-[var(--amancay-wine)]"
                     aria-label={`Quitar ${item.product.name}`}
                   >
                     <Trash2 className="h-4 w-4" aria-hidden="true" />
                   </button>
                 </div>
-                {item.selectedVariant && <p className="mt-1 text-sm text-[var(--ink-accent)]">{item.selectedVariant.name}</p>}
+                {item.selectedVariant && <p className="mt-1"><span className="tag tag-quiet">{item.selectedVariant.name}</span></p>}
 
                 <div className="mt-3 flex items-center justify-between gap-3">
-                  <div className="flex items-center rounded-full border border-[var(--amancay-border)] bg-[var(--bg-page)]">
+                  <div className="flex items-center rounded-btn bg-[var(--bg-subtle)]">
                     <button
                       type="button"
                       onClick={() => updateCartQuantity(item.id, -1)}
-                      className="flex h-10 w-10 items-center justify-center rounded-full text-[var(--ink-primary)] hover:bg-[var(--bg-subtle)]"
+                      className="tap-interactive flex h-11 w-11 items-center justify-center rounded-btn text-[var(--ink-primary)] hover:bg-[var(--bg-sunken)]"
                       aria-label={`Restar una unidad de ${item.product.name}`}
                     >
                       <Minus className="h-4 w-4" aria-hidden="true" />
@@ -131,7 +119,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                       type="button"
                       onClick={() => updateCartQuantity(item.id, 1)}
                       disabled={item.quantity >= item.available}
-                      className="flex h-10 w-10 items-center justify-center rounded-full text-[var(--ink-primary)] hover:bg-[var(--bg-subtle)] disabled:cursor-not-allowed disabled:opacity-40"
+                      className="tap-interactive flex h-11 w-11 items-center justify-center rounded-btn text-[var(--ink-primary)] hover:bg-[var(--bg-sunken)] disabled:cursor-not-allowed disabled:opacity-40"
                       aria-label={`Sumar una unidad de ${item.product.name}`}
                     >
                       <Plus className="h-4 w-4" aria-hidden="true" />

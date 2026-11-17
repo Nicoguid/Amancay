@@ -124,7 +124,7 @@ function Chips<T extends string>({
           type="button"
           aria-pressed={value === o.id}
           onClick={() => onChange(o.id)}
-          className={`tap-interactive min-h-10 rounded-full border px-4 text-sm font-semibold ${
+          className={`tap-interactive min-h-10 rounded-btn border px-4 text-sm font-semibold ${
             value === o.id
               ? 'border-[var(--brand-olive)] bg-[var(--brand-olive)] text-white'
               : 'border-[var(--amancay-border)] bg-white text-[var(--ink-secondary)] hover:border-[var(--brand-brass)]'

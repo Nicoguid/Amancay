@@ -9,10 +9,12 @@
  * - las acciones son funciones de módulo, estables, que devuelven su resultado al instante.
  *
  * El carrito guarda solo ids y cantidades: precio y stock se leen siempre del catálogo vigente.
+ *
+ * Sin cuenta de usuario: los guardados, el perfil y "mis pedidos" también viven en este navegador.
  */
 
 import { useMemo, useSyncExternalStore } from 'react';
-import type { Order, OrderStatus, Product, ProductCategory, ProductVariant } from '@/lib/types';
+import type { Order, OrderStatus, Product, ProductCategory, ProductVariant, ShippingMethod } from '@/lib/types';
 import { INITIAL_ORDERS, INITIAL_PRODUCTS } from '@/lib/mockData';
 import { slugify } from '@/lib/storeConfig';
 import { track } from '@/lib/consent';
@@ -25,10 +27,39 @@ interface StoredCartItem {
   quantity: number;
 }
 
+/**
+ * Datos que la persona elige guardar para no volver a escribirlos en el checkout.
+ * Datos mínimos: sin DNI (solo lo pide Correo Argentino al confirmar un envío).
+ */
+export interface CustomerProfile {
+  fullName: string;
+  phone: string;
+  email: string;
+  shippingMethod: ShippingMethod;
+  address: string;
+  city: string;
+  postalCode: string;
+}
+
+export const EMPTY_PROFILE: CustomerProfile = {
+  fullName: '',
+  phone: '',
+  email: '',
+  shippingMethod: 'pickup',
+  address: '',
+  city: '',
+  postalCode: '',
+};
+
 interface StoreState {
   products: Product[];
   orders: Order[];
   cart: StoredCartItem[];
+  /** Ids de productos guardados para después. */
+  saved: string[];
+  profile: CustomerProfile | null;
+  /** Ids de los pedidos hechos desde este navegador (los del panel de ejemplo no cuentan). */
+  myOrders: string[];
 }
 
 export interface CartItem {
@@ -94,6 +125,9 @@ const KEYS = {
   products: `amancay_products_${STORAGE_VERSION}`,
   orders: `amancay_orders_${STORAGE_VERSION}`,
   cart: `amancay_cart_${STORAGE_VERSION}`,
+  saved: 'amancay_saved_v1',
+  profile: 'amancay_profile_v1',
+  myOrders: 'amancay_my_orders_v1',
 };
 const LEGACY_KEYS = { products: 'amancay_products_v3__unused', orders: 'amancay_orders_v3__unused' };
 
@@ -101,6 +135,9 @@ const SERVER_STATE: StoreState = {
   products: INITIAL_PRODUCTS.map(normalizeProduct),
   orders: INITIAL_ORDERS,
   cart: [],
+  saved: [],
+  profile: null,
+  myOrders: [],
 };
 
 function readJson<T>(key: string): T | null {
@@ -123,10 +160,33 @@ function loadState(): StoreState {
     readJson<Product[]>(KEYS.products) ?? readJson<Product[]>(LEGACY_KEYS.products) ?? SERVER_STATE.products;
   const orders = readJson<Order[]>(KEYS.orders) ?? readJson<Order[]>(LEGACY_KEYS.orders) ?? SERVER_STATE.orders;
   const cart = readJson<StoredCartItem[]>(KEYS.cart) ?? [];
+  const saved = readJson<unknown>(KEYS.saved);
+  const profile = readJson<Partial<CustomerProfile>>(KEYS.profile);
+  const myOrders = readJson<unknown>(KEYS.myOrders);
+  const stringList = (value: unknown) => (Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : []);
   return {
+    saved: stringList(saved),
+    profile: profile && typeof profile === 'object' ? sanitizeProfile(profile) : null,
+    myOrders: stringList(myOrders),
     products: products.map(normalizeProduct),
     orders: orders.map(migrateOrder),
     cart: cart.filter((item) => item && typeof item.productId === 'string' && item.quantity > 0),
+  };
+}
+
+const SHIPPING_METHODS: ShippingMethod[] = ['pickup', 'moto_caba', 'correo_argentino'];
+
+/** Lo guardado puede venir de una versión vieja o estar editado a mano: se recorta y se valida. */
+function sanitizeProfile(raw: Partial<CustomerProfile>): CustomerProfile {
+  const text = (value: unknown, max: number) => (typeof value === 'string' ? value.slice(0, max) : '');
+  return {
+    fullName: text(raw.fullName, 80),
+    phone: text(raw.phone, 30),
+    email: text(raw.email, 120),
+    shippingMethod: SHIPPING_METHODS.includes(raw.shippingMethod as ShippingMethod) ? (raw.shippingMethod as ShippingMethod) : 'pickup',
+    address: text(raw.address, 120),
+    city: text(raw.city, 60),
+    postalCode: text(raw.postalCode, 10),
   };
 }
 
@@ -135,6 +195,12 @@ function persist(next: StoreState, prev: StoreState) {
     if (next.products !== prev.products) window.localStorage.setItem(KEYS.products, JSON.stringify(next.products));
     if (next.orders !== prev.orders) window.localStorage.setItem(KEYS.orders, JSON.stringify(next.orders));
     if (next.cart !== prev.cart) window.localStorage.setItem(KEYS.cart, JSON.stringify(next.cart));
+    if (next.saved !== prev.saved) window.localStorage.setItem(KEYS.saved, JSON.stringify(next.saved));
+    if (next.myOrders !== prev.myOrders) window.localStorage.setItem(KEYS.myOrders, JSON.stringify(next.myOrders));
+    if (next.profile !== prev.profile) {
+      if (next.profile) window.localStorage.setItem(KEYS.profile, JSON.stringify(next.profile));
+      else window.localStorage.removeItem(KEYS.profile);
+    }
   } catch {
     // Modo incógnito o cuota llena: la demo sigue funcionando en memoria.
   }
@@ -229,6 +295,34 @@ function updateCartQuantity(cartItemId: string, delta: number) {
 
 function clearCart() {
   setState((state) => (state.cart.length ? { ...state, cart: [] } : state));
+}
+
+// ---------- Guardados y perfil (sin cuenta, en este navegador) ----------
+
+const MAX_SAVED = 60;
+
+/** Guarda o quita un producto. Devuelve true si quedó guardado. */
+function toggleSaved(productId: string): boolean {
+  let nowSaved = false;
+  setState((state) => {
+    if (state.saved.includes(productId)) return { ...state, saved: state.saved.filter((id) => id !== productId) };
+    nowSaved = true;
+    return { ...state, saved: [productId, ...state.saved].slice(0, MAX_SAVED) };
+  });
+  return nowSaved;
+}
+
+function clearSaved() {
+  setState((state) => (state.saved.length ? { ...state, saved: [] } : state));
+}
+
+function saveProfile(profile: CustomerProfile) {
+  setState((state) => ({ ...state, profile: sanitizeProfile(profile) }));
+}
+
+/** Borra el perfil de este navegador. */
+function clearProfile() {
+  setState((state) => (state.profile ? { ...state, profile: null } : state));
 }
 
 function updateProduct(id: string, updated: Partial<Product>) {
@@ -342,6 +436,8 @@ function createOrder(input: Omit<Order, 'id' | 'orderNumber' | 'createdAt'>): Cr
   };
 
   setState((s) => ({
+    ...s,
+    myOrders: [order.id, ...s.myOrders].slice(0, 50),
     products: s.products.map((product) => {
       const lines = input.items.filter((i) => i.productId === product.id);
       if (!lines.length) return product;
@@ -382,6 +478,10 @@ const actions = {
   importProductsFromCsvData,
   createOrder,
   updateOrderStatus,
+  toggleSaved,
+  clearSaved,
+  saveProfile,
+  clearProfile,
 };
 
 // ---------- Hooks ----------
@@ -424,9 +524,31 @@ export function useStore() {
   const cartCount = cart.reduce((n, item) => n + item.quantity, 0);
   const cartTotal = cart.reduce((n, item) => n + item.unitPrice * item.quantity, 0);
 
+  /** Productos guardados que siguen publicados, en el orden en que se guardaron. */
+  const saved = useMemo<Product[]>(
+    () =>
+      state.saved
+        .map((id) => state.products.find((p) => p.id === id))
+        .filter((p): p is Product => !!p && p.active),
+    [state.saved, state.products]
+  );
+
+  /** Pedidos hechos desde este navegador, del más nuevo al más viejo. */
+  const myOrders = useMemo<Order[]>(
+    () =>
+      state.myOrders
+        .map((id) => state.orders.find((o) => o.id === id))
+        .filter((o): o is Order => !!o && !o.isSample),
+    [state.myOrders, state.orders]
+  );
+
   return {
     products: state.products,
     orders: state.orders,
+    saved,
+    savedIds: state.saved,
+    profile: state.profile,
+    myOrders,
     cart,
     cartCount,
     cartTotal,

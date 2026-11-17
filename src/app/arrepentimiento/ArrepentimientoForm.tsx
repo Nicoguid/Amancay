@@ -69,7 +69,7 @@ export function ArrepentimientoForm() {
           href={whatsappUrl(text)}
           target="_blank"
           rel="noopener noreferrer"
-          className="tap-interactive inline-flex min-h-12 items-center rounded-full bg-[var(--whatsapp-action)] px-6 font-semibold text-white hover:bg-[var(--whatsapp-action-hover)]"
+          className="tap-interactive inline-flex min-h-12 items-center rounded-btn bg-[var(--whatsapp-action)] px-6 font-semibold text-white hover:bg-[var(--whatsapp-action-hover)]"
         >
           Enviar el código por WhatsApp
         </a>
@@ -113,7 +113,7 @@ export function ArrepentimientoForm() {
       </div>
       <button
         type="submit"
-        className="tap-interactive min-h-12 w-full rounded-full bg-[var(--brand-leather)] font-semibold text-white hover:bg-[var(--brand-leather-hover)]"
+        className="tap-interactive min-h-12 w-full rounded-btn bg-[var(--brand-leather)] font-semibold text-white hover:bg-[var(--brand-leather-hover)]"
       >
         Pedir la revocación
       </button>

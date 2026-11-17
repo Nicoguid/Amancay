@@ -1,10 +1,11 @@
 'use client';
 
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Search, X, MapPin, MessageCircle } from 'lucide-react';
+import { Search, X, Store, MessageCircle, SlidersHorizontal } from 'lucide-react';
 import { useStore, priceRange } from '@/context/StoreContext';
 import { ProductCard } from '@/components/ProductCard';
+import { Reveal } from '@/components/Reveal';
 import { STORE, normalizeText, whatsappUrl } from '@/lib/storeConfig';
 import { CATEGORIES as RUBROS } from '@/lib/categories';
 
@@ -18,8 +19,6 @@ const SORTS = [
 ] as const;
 type SortId = (typeof SORTS)[number]['id'];
 
-const fieldClass =
-  'w-full rounded border border-[var(--amancay-border)] bg-white px-3 py-2.5 text-sm text-[var(--ink-primary)] focus:border-[var(--brand-leather)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-leather)]';
 
 /**
  * Los filtros viven en la URL (?rubro=&marca=&q=&orden=&stock=1):
@@ -93,128 +92,138 @@ export function CatalogContent() {
   }, [activeProducts, category, brand, onlyInStock, deferredDraft, sort]);
 
   const hasFilters = category !== 'all' || brand !== 'all' || draft !== '' || onlyInStock;
+  // En celular, marca y stock quedan plegados para que los productos se vean antes.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const extraFilters = Number(brand !== 'all') + Number(onlyInStock);
+  const resetFilters = () => {
+    if (debounce.current) clearTimeout(debounce.current);
+    setDraft('');
+    router.replace(pathname, { scroll: false });
+  };
   const title = CATEGORIES.find((c) => c.id === category && c.id !== 'all')?.name ?? 'Catálogo de Amancay';
 
   return (
     <div className="min-h-screen bg-[var(--bg-page)] pb-16 text-[var(--ink-primary)]">
       <header className="border-b border-[var(--amancay-border)] bg-[var(--bg-subtle)]">
-        <div className="mx-auto max-w-[1320px] px-5 py-10 sm:px-8 sm:py-14 lg:px-12">
-          <p className="inline-flex items-center gap-2 rounded-full border border-[var(--brand-brass)] bg-[var(--bg-page)] px-3.5 py-1.5 text-[13px] font-semibold">
-            <MapPin className="h-3.5 w-3.5 text-[var(--brand-leather)]" aria-hidden="true" />
-            Retiro sin costo en {STORE.address}
+        <div className="mx-auto max-w-[1320px] px-4 pb-5 pt-8 sm:px-8 sm:pt-12 lg:px-12">
+          <p className="enter eyebrow eyebrow-rule" style={{ '--i': 0, '--rise': '8px' } as CSSProperties}>
+            {category === 'all' ? 'Todo el mostrador' : 'Catálogo'}
           </p>
-          <h1 className="mt-5 font-display text-[40px] leading-[1.1] sm:text-[52px]">{title}</h1>
-          <p className="mt-3 max-w-2xl text-lg leading-relaxed text-[var(--ink-muted)]">
-            Precio y stock actualizados el mismo día. Elegí, pagá online y retiralo en el local, o pedí envío.
+          <h1 className="enter mt-2 font-display text-[36px] leading-[1.1] tracking-[-0.02em] sm:text-[48px]" style={{ '--i': 1 } as CSSProperties}>
+            {title}
+          </h1>
+          <p className="enter mt-3 flex max-w-2xl items-start gap-2 text-base leading-relaxed text-[var(--ink-muted)] sm:text-[17px]" style={{ '--i': 2 } as CSSProperties}>
+            <Store className="mt-1 h-4 w-4 shrink-0 text-[var(--ink-gold)]" aria-hidden="true" />
+            <span>Precio y stock a la vista. Retiro sin costo en {STORE.address} o envío a todo el país.</span>
           </p>
+
+          <nav aria-label="Rubros" className="enter no-scrollbar -mx-4 mt-6 overflow-x-auto px-4 sm:mx-0 sm:px-0" style={{ '--i': 3, '--rise': '10px' } as CSSProperties}>
+            <ul className="flex gap-2">
+              {CATEGORIES.map((cat) => {
+                const count = cat.id === 'all' ? activeProducts.length : activeProducts.filter((p) => p.category === cat.id).length;
+                return (
+                  <li key={cat.id}>
+                    <button type="button" onClick={() => setParam('rubro', cat.id)} aria-pressed={category === cat.id} className="chip chip-on-tint">
+                      {cat.name}
+                      <span className="tabular-nums opacity-70">({count})</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
         </div>
       </header>
-      <div className="mx-auto max-w-[1320px] px-5 pt-8 sm:px-8 lg:px-12">
-        <nav aria-label="Rubros" className="no-scrollbar -mx-5 mb-8 overflow-x-auto px-5 sm:mx-0 sm:px-0">
-          <ul className="flex gap-2">
-            {CATEGORIES.map((cat) => {
-              const count = cat.id === 'all' ? activeProducts.length : activeProducts.filter((p) => p.category === cat.id).length;
-              const selected = category === cat.id;
-              return (
-                <li key={cat.id}>
-                  <button
-                    type="button"
-                    onClick={() => setParam('rubro', cat.id)}
-                    aria-pressed={selected}
-                    className={`tap-interactive flex min-h-11 items-center gap-2 whitespace-nowrap rounded-full px-4 text-sm font-semibold ${
-                      selected
-                        ? 'border border-[var(--brand-olive)] bg-[var(--brand-olive)] text-white'
-                        : 'border border-[var(--amancay-border)] bg-white text-[var(--ink-primary)] hover:border-[var(--brand-olive)]'
-                    }`}
-                  >
-                    {cat.name}
-                    <span className={`rounded-full px-1.5 text-xs tabular-nums ${selected ? 'bg-white/20' : 'bg-[var(--bg-subtle)]'}`}>
-                      {count}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
 
-        <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-4">
-          <aside aria-label="Filtros" className="space-y-5 lg:sticky lg:top-40 lg:col-span-1">
-            <div className="card-rest space-y-5 rounded-lg border border-[var(--amancay-border)] bg-white p-5">
-            <h2 className="font-display text-xl">Filtrar</h2>
-            <div>
-              <label htmlFor="catalog-search" className="mb-1.5 block text-sm font-semibold">
-                Buscar
-              </label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--ink-muted)]" aria-hidden="true" />
-                <input
-                  id="catalog-search"
-                  name="q"
-                  type="search"
-                  autoComplete="off"
-                  value={draft}
-                  onFocus={() => setIsTyping(true)}
-                  onBlur={() => setIsTyping(false)}
-                  onChange={(e) => {
-                    setDraft(e.target.value);
-                    writeQuery(e.target.value);
-                  }}
-                  placeholder="Ej.: imperial, alpaca, Kevin…"
-                  className={`${fieldClass} pl-9 pr-10`}
-                />
-                {draft && (
-                  <button
-                    type="button"
-                    onClick={clearSearch}
-                    aria-label="Borrar búsqueda"
-                    className="absolute right-1 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-[var(--ink-muted)] hover:text-[var(--ink-primary)]"
-                  >
-                    <X className="h-4 w-4" aria-hidden="true" />
+      <div className="mx-auto max-w-[1320px] px-4 pt-6 sm:px-8 sm:pt-8 lg:px-12">
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-4 lg:gap-8">
+          <aside aria-label="Filtros" className="space-y-5 lg:sticky lg:top-36 lg:col-span-1">
+            <div className="card-rest space-y-4 rounded-lg bg-white p-4 sm:p-5">
+              <h2 className="hidden font-display text-xl lg:block">Filtrar</h2>
+              <div className="flex gap-2 lg:block">
+                <div className="min-w-0 flex-1">
+                  <label htmlFor="catalog-search" className="mb-1.5 hidden text-sm font-semibold lg:block">
+                    Buscar
+                  </label>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--ink-muted)]" aria-hidden="true" />
+                    <input
+                      id="catalog-search"
+                      name="q"
+                      type="search"
+                      autoComplete="off"
+                      aria-label="Buscar en el catálogo"
+                      value={draft}
+                      onFocus={() => setIsTyping(true)}
+                      onBlur={() => setIsTyping(false)}
+                      onChange={(e) => {
+                        setDraft(e.target.value);
+                        writeQuery(e.target.value);
+                      }}
+                      placeholder="Ej.: imperial, alpaca, Kevin…"
+                      className="field pl-9 pr-10 text-[15px]"
+                    />
+                    {draft && (
+                      <button
+                        type="button"
+                        onClick={clearSearch}
+                        aria-label="Borrar búsqueda"
+                        className="absolute right-0.5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-[var(--ink-muted)] hover:text-[var(--ink-primary)]"
+                      >
+                        <X className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFiltersOpen((open) => !open)}
+                  aria-expanded={filtersOpen}
+                  aria-controls="catalog-more-filters"
+                  className="btn btn-quiet shrink-0 px-3.5 lg:hidden"
+                >
+                  <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+                  Filtros
+                  {extraFilters > 0 && (
+                    <span className="rounded-full bg-[var(--ink-primary)] px-1.5 text-xs font-bold tabular-nums text-white">{extraFilters}</span>
+                  )}
+                </button>
+              </div>
+
+              <div id="catalog-more-filters" className={`space-y-4 ${filtersOpen ? 'animate-fade-in-up block' : 'hidden'} lg:block`}>
+                <div>
+                  <label htmlFor="catalog-brand" className="mb-1.5 block text-sm font-semibold">
+                    Marca
+                  </label>
+                  <select id="catalog-brand" name="marca" autoComplete="off" value={brand} onChange={(e) => setParam('marca', e.target.value)} className="field text-[15px]">
+                    <option value="all">Todas las marcas</option>
+                    {brands.map((b) => (
+                      <option key={b} value={b}>
+                        {b}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <label className="flex min-h-11 cursor-pointer items-center gap-3 text-[15px] font-medium">
+                  <input
+                    type="checkbox"
+                    checked={onlyInStock}
+                    onChange={(e) => setParam('stock', e.target.checked ? '1' : null)}
+                    className="h-5 w-5 accent-[var(--brand-espresso)]"
+                  />
+                  Solo con stock
+                </label>
+
+                {hasFilters && (
+                  <button type="button" onClick={resetFilters} className="btn btn-quiet w-full text-[var(--amancay-wine)]">
+                    Limpiar filtros
                   </button>
                 )}
               </div>
             </div>
 
-            <div>
-              <label htmlFor="catalog-brand" className="mb-1.5 block text-sm font-semibold">
-                Marca
-              </label>
-              <select id="catalog-brand" value={brand} onChange={(e) => setParam('marca', e.target.value)} className={fieldClass}>
-                <option value="all">Todas las marcas</option>
-                {brands.map((b) => (
-                  <option key={b} value={b}>
-                    {b}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
-              <input
-                type="checkbox"
-                checked={onlyInStock}
-                onChange={(e) => setParam('stock', e.target.checked ? '1' : null)}
-                className="h-5 w-5 accent-[var(--brand-leather)]"
-              />
-              Solo con stock
-            </label>
-
-            {hasFilters && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (debounce.current) clearTimeout(debounce.current);
-                  setDraft('');
-                  router.replace(pathname, { scroll: false });
-                }}
-                className="tap-interactive min-h-11 w-full rounded-full border border-[var(--amancay-border)] text-sm font-semibold text-[var(--amancay-wine)] hover:bg-[var(--bg-subtle)]"
-              >
-                Limpiar filtros
-              </button>
-            )}
-            </div>
-            <div className="hidden rounded-lg border border-[var(--brand-brass)] bg-[var(--bg-subtle)] p-5 lg:block">
+            <div className="hidden rounded-lg bg-[var(--bg-sunken)] p-5 lg:block">
               <p className="font-display text-lg">Te ayudamos a elegir</p>
               <p className="mt-1.5 text-sm leading-relaxed text-[var(--ink-muted)]">
                 Te mandamos fotos del modelo que tenemos en el local y te asesoramos por WhatsApp.
@@ -223,29 +232,33 @@ export function CatalogContent() {
                 href={whatsappUrl('Hola Amancay, quiero que me asesoren con un producto.')}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-full border-[1.5px] border-[var(--brand-olive)] px-4 text-sm font-semibold text-[var(--brand-olive)] hover:bg-[var(--brand-olive-wash)]"
+                className="btn btn-primary mt-4 w-full"
               >
-                <MessageCircle className="h-4 w-4" aria-hidden="true" />
-                Consultar
+                <MessageCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
+                Pedir fotos
+                <span className="sr-only"> por WhatsApp (se abre en otra pestaña)</span>
               </a>
             </div>
           </aside>
 
-          <section aria-labelledby="results-count" className="space-y-6 lg:col-span-3">
-            <div className="flex flex-col justify-between gap-3 border-b border-[var(--amancay-border)] pb-4 sm:flex-row sm:items-center">
-              <p id="results-count" aria-live="polite" className="text-sm text-[var(--ink-muted)]">
-                <strong className="text-[var(--ink-primary)]">{filteredProducts.length}</strong>{' '}
+          <section aria-labelledby="results-count" className="space-y-5 lg:col-span-3">
+            <div className="flex items-center justify-between gap-3">
+              <p id="results-count" aria-live="polite" className="text-[15px] text-[var(--ink-muted)]">
+                <strong className="tabular-nums text-[var(--ink-primary)]">{filteredProducts.length}</strong>{' '}
                 {filteredProducts.length === 1 ? 'producto' : 'productos'}
               </p>
               <div className="flex items-center gap-2">
-                <label htmlFor="catalog-sort" className="text-sm font-semibold text-[var(--ink-muted)]">
+                <label htmlFor="catalog-sort" className="hidden text-sm font-semibold text-[var(--ink-muted)] sm:block">
                   Ordenar por
                 </label>
                 <select
                   id="catalog-sort"
+                  name="orden"
+                  autoComplete="off"
+                  aria-label="Ordenar por"
                   value={sort}
                   onChange={(e) => setParam('orden', e.target.value === 'destacados' ? null : e.target.value)}
-                  className="min-h-11 rounded-full border border-[var(--amancay-border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--ink-primary)]"
+                  className="field w-auto bg-white py-2 text-[15px] font-semibold"
                 >
                   {SORTS.map((s) => (
                     <option key={s.id} value={s.id}>
@@ -257,27 +270,20 @@ export function CatalogContent() {
             </div>
 
             {filteredProducts.length === 0 ? (
-              <div className="space-y-3 rounded-lg border border-[var(--amancay-border)] bg-white p-12 text-center">
+              <div className="swap-in space-y-3 rounded-lg bg-white p-10 text-center shadow-[var(--shadow-rest)] sm:p-12">
                 <p className="font-display text-2xl">No hay productos con esos filtros</p>
                 <p className="text-[var(--ink-muted)]">Probá con otra palabra o sacá algún filtro.</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (debounce.current) clearTimeout(debounce.current);
-                    setDraft('');
-                    router.replace(pathname, { scroll: false });
-                  }}
-                  className="tap-interactive mt-2 min-h-11 rounded-full bg-[var(--brand-leather)] px-6 font-semibold text-white hover:bg-[var(--brand-leather-hover)]"
-                >
+                <button type="button" onClick={resetFilters} className="btn btn-primary mt-2">
                   Ver todo el catálogo
                 </button>
               </div>
             ) : (
-              <ul className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3">
-                {filteredProducts.map((product) => (
-                  <li key={product.id}>
+              // La clave cambia con rubro, marca y orden: la grilla nueva hace una entrada corta.
+              <ul key={`${category}-${brand}-${sort}-${onlyInStock}`} className="swap-in grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-3">
+                {filteredProducts.map((product, i) => (
+                  <Reveal as="li" key={product.id} index={i % 3} rise={16}>
                     <ProductCard product={product} headingLevel={2} />
-                  </li>
+                  </Reveal>
                 ))}
               </ul>
             )}

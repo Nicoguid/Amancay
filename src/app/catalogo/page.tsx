@@ -12,8 +12,8 @@ export default function CatalogPage() {
     <Suspense
       fallback={
         <div className="border-b border-[var(--amancay-border)] bg-[var(--bg-subtle)]">
-          <div className="mx-auto max-w-[1320px] px-5 py-10 sm:px-8 sm:py-14 lg:px-12">
-            <h1 className="font-display text-[40px] leading-[1.1] sm:text-[52px]">Catálogo</h1>
+          <div className="mx-auto max-w-[1320px] px-4 pb-5 pt-8 sm:px-8 sm:pt-12 lg:px-12">
+            <h1 className="font-display text-[36px] leading-[1.1] tracking-[-0.02em] sm:text-[48px]">Catálogo de Amancay</h1>
             <p className="mt-3 text-lg text-[var(--ink-muted)]" role="status">
               Cargando productos…
             </p>

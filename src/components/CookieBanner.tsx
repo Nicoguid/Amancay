@@ -56,12 +56,12 @@ export function CookieBanner() {
   };
 
   const button =
-    'tap-interactive min-h-11 flex-1 rounded-full border-[1.5px] border-[var(--brand-leather)] px-5 text-sm font-semibold sm:flex-none';
+    'tap-interactive min-h-11 flex-1 rounded-btn border-[1.5px] border-[var(--brand-leather)] px-5 text-sm font-semibold sm:flex-none';
 
   return (
     <section
       aria-labelledby="cookies-title"
-      className="fixed inset-x-3 bottom-3 z-40 rounded-lg border border-[var(--amancay-border)] bg-white p-5 shadow-[var(--shadow-lift)] sm:inset-x-auto sm:bottom-6 sm:left-6 sm:max-w-[420px]"
+      className="fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 rounded-lg border border-[var(--amancay-border)] bg-white p-5 shadow-[var(--shadow-lift)] sm:inset-x-auto sm:left-6 lg:bottom-6 sm:max-w-[420px]"
     >
       <h2 id="cookies-title" className="font-display text-lg text-[var(--ink-primary)]">
         Medición de visitas

@@ -25,7 +25,7 @@ Comercio de barrio multirubro sobre Av. Corrientes: perfumeria, cosmetica, bazar
 - Hoy todo es manual: cuaderno, mostrador y WhatsApp.
 - Listas de proveedores con aumentos frecuentes por marca o categoria (contexto inflacionario argentino).
 - Retiro en el local, cadeteria en CABA, correo al interior.
-- Medios de pago esperados: Mercado Pago, transferencia (con descuento), coordinar por WhatsApp.
+- Medios de pago: Mercado Pago, transferencia y pago en el local. Mismo precio con cualquier medio (la clienta sacó para siempre el descuento por transferencia).
 
 ## Capabilities and Constraints
 
@@ -36,13 +36,13 @@ Comercio de barrio multirubro sobre Av. Corrientes: perfumeria, cosmetica, bazar
 
 ## Brand Commitments
 
-- Nombre: Perfumeria Amancay. No existe logo, colores ni tipografias previas; la identidad se crea en este proyecto.
+- Nombre: Perfumeria Amancay. La identidad visual es la del archivo de Figma "Amancay" (crema, espresso y dorado; Playfair Display + Plus Jakarta Sans). El logo sigue provisorio: hay 3 opciones en `Logos/` y falta que la clienta elija.
 - Sin emojis en la interfaz.
 
 ## Evidence on Hand
 
-- No hay fotografias propias del local ni de productos. Cualquier imagen es de archivo abierto (con credito) o dibujada en codigo, y debe reemplazarse.
-- WhatsApp, horarios, alias y CBU son **placeholders a confirmar con la clienta**.
+- Hay fotos de producto (`public/productos/`), no del local. Lo que muestre el local (mapa, vidriera) se dibuja en codigo o se arma con fotos de producto; no se usan fotos de otro comercio.
+- WhatsApp y horarios estan confirmados (`src/lib/storeConfig.ts`). Alias, CBU y datos fiscales son **placeholders a confirmar con la clienta**.
 - No hay resenas, testimonios, cifras de ventas ni prensa: no inventar.
 - Productos, marcas y precios son de muestra.
 

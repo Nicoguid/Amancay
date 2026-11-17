@@ -169,3 +169,38 @@ export function productPath(product: { slug?: string; id: string }): string {
 export function slugify(value: string): string {
   return normalizeText(value).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
+
+// ---------- Horario de hoy ----------
+
+const BA_TIME = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Argentina/Buenos_Aires',
+  weekday: 'long',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+export interface TodayHours {
+  /** "9:00 a 13:00 y 15:30 a 19:00" o "Cerrado". */
+  time: string;
+  isOpen: boolean;
+}
+
+/**
+ * Horario del día de hoy según el reloj de Buenos Aires (no el del dispositivo:
+ * alguien puede mirar la tienda desde otro huso horario).
+ */
+export function todayHours(now: Date = new Date()): TodayHours {
+  const parts = BA_TIME.formatToParts(now);
+  const weekday = parts.find((p) => p.type === 'weekday')?.value ?? '';
+  const minutes =
+    Number(parts.find((p) => p.type === 'hour')?.value ?? 0) * 60 + Number(parts.find((p) => p.type === 'minute')?.value ?? 0);
+  const today = STORE.hours.find((h) => (h.dayCodes as readonly string[]).includes(weekday));
+  if (!today || today.shifts.length === 0) return { time: 'Cerrado', isOpen: false };
+  const toMinutes = (hhmm: string) => {
+    const [h, m] = hhmm.split(':').map(Number);
+    return h * 60 + m;
+  };
+  const isOpen = today.shifts.some(([opens, closes]) => minutes >= toMinutes(opens) && minutes < toMinutes(closes));
+  return { time: today.time, isOpen };
+}
