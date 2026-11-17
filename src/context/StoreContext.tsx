@@ -15,6 +15,7 @@ import { useMemo, useSyncExternalStore } from 'react';
 import type { Order, OrderStatus, Product, ProductCategory, ProductVariant } from '@/lib/types';
 import { INITIAL_ORDERS, INITIAL_PRODUCTS } from '@/lib/mockData';
 import { slugify } from '@/lib/storeConfig';
+import { track } from '@/lib/consent';
 
 // ---------- Tipos ----------
 
@@ -88,13 +89,13 @@ const cartLineId = (productId: string, variantId?: string) => (variantId ? `${pr
 
 // ---------- Persistencia ----------
 
-const STORAGE_VERSION = 'v3';
+const STORAGE_VERSION = 'v5';
 const KEYS = {
   products: `amancay_products_${STORAGE_VERSION}`,
   orders: `amancay_orders_${STORAGE_VERSION}`,
   cart: `amancay_cart_${STORAGE_VERSION}`,
 };
-const LEGACY_KEYS = { products: 'amancay_products_v2', orders: 'amancay_orders_v2' };
+const LEGACY_KEYS = { products: 'amancay_products_v3__unused', orders: 'amancay_orders_v3__unused' };
 
 const SERVER_STATE: StoreState = {
   products: INITIAL_PRODUCTS.map(normalizeProduct),
@@ -201,6 +202,7 @@ function addToCart(product: Product, quantity = 1, variant?: ProductVariant): nu
       : [...state.cart, { productId: product.id, variantId: variant?.id, quantity: added }];
     return { ...state, cart };
   });
+  if (added > 0) track('add_to_cart', { item_id: product.sku, item_name: product.name, quantity: added, currency: 'ARS' });
   return added;
 }
 

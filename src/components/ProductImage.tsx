@@ -2,7 +2,7 @@
    Las fotos pueden venir de cualquier URL que cargue la dueña en el panel, así que no usamos
    next/image (exige declarar cada dominio). A cambio: tamaño fijo, carga diferida y fallback. */
 
-import { ImageOff } from 'lucide-react';
+import { BrandSeal } from './BrandMark';
 
 interface ProductImageProps {
   src?: string;
@@ -20,9 +20,10 @@ export function ProductImage({ src, alt, width, height, className = '', priority
         role={alt ? 'img' : undefined}
         aria-label={alt || undefined}
         aria-hidden={alt ? undefined : true}
-        className={`flex items-center justify-center bg-[var(--bg-subtle)] text-[var(--ink-muted)] ${className}`}
+        className={`@container flex flex-col items-center justify-center gap-2 bg-[var(--bg-subtle)] text-[var(--ink-muted)] ${className}`}
       >
-        <ImageOff className="h-6 w-6" aria-hidden="true" />
+        <BrandSeal className="h-1/4 max-h-16 min-h-6 w-auto opacity-50" />
+        <span className="hidden text-center text-xs font-semibold @[140px]:block">Foto en camino</span>
       </div>
     );
   }

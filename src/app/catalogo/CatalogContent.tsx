@@ -2,17 +2,13 @@
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Search, X } from 'lucide-react';
+import { Search, X, MapPin, MessageCircle } from 'lucide-react';
 import { useStore, priceRange } from '@/context/StoreContext';
 import { ProductCard } from '@/components/ProductCard';
-import { STORE, normalizeText } from '@/lib/storeConfig';
+import { STORE, normalizeText, whatsappUrl } from '@/lib/storeConfig';
+import { CATEGORIES as RUBROS } from '@/lib/categories';
 
-const CATEGORIES = [
-  { id: 'all', name: 'Todo' },
-  { id: 'mates', name: 'Mates' },
-  { id: 'bombillas', name: 'Bombillas' },
-  { id: 'perfumes', name: 'Perfumes' },
-] as const;
+const CATEGORIES = [{ id: 'all', name: 'Todo' }, ...RUBROS.map((c) => ({ id: c.id, name: c.label }))];
 
 const SORTS = [
   { id: 'destacados', name: 'Destacados' },
@@ -23,7 +19,7 @@ const SORTS = [
 type SortId = (typeof SORTS)[number]['id'];
 
 const fieldClass =
-  'w-full rounded-md border border-[var(--amancay-border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--ink-primary)] focus:border-[var(--ink-accent)]';
+  'w-full rounded border border-[var(--amancay-border)] bg-white px-3 py-2.5 text-sm text-[var(--ink-primary)] focus:border-[var(--brand-leather)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-leather)]';
 
 /**
  * Los filtros viven en la URL (?rubro=&marca=&q=&orden=&stock=1):
@@ -97,17 +93,24 @@ export function CatalogContent() {
   }, [activeProducts, category, brand, onlyInStock, deferredDraft, sort]);
 
   const hasFilters = category !== 'all' || brand !== 'all' || draft !== '' || onlyInStock;
-  const title = CATEGORIES.find((c) => c.id === category && c.id !== 'all')?.name ?? 'Catálogo';
+  const title = CATEGORIES.find((c) => c.id === category && c.id !== 'all')?.name ?? 'Catálogo de Amancay';
 
   return (
-    <div className="min-h-screen bg-[var(--bg-page)] py-8 text-[var(--ink-primary)] sm:py-12">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <header className="mb-6 space-y-2">
-          <h1 className="font-display text-4xl tracking-tight sm:text-5xl">{title}</h1>
-          <p className="text-[var(--ink-muted)]">Precio y stock actualizados. Retirá sin costo en {STORE.address} o pedí envío.</p>
-        </header>
-
-        <nav aria-label="Rubros" className="no-scrollbar -mx-4 mb-6 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+    <div className="min-h-screen bg-[var(--bg-page)] pb-16 text-[var(--ink-primary)]">
+      <header className="border-b border-[var(--amancay-border)] bg-[var(--bg-subtle)]">
+        <div className="mx-auto max-w-[1320px] px-5 py-10 sm:px-8 sm:py-14 lg:px-12">
+          <p className="inline-flex items-center gap-2 rounded-full border border-[var(--brand-brass)] bg-[var(--bg-page)] px-3.5 py-1.5 text-[13px] font-semibold">
+            <MapPin className="h-3.5 w-3.5 text-[var(--brand-leather)]" aria-hidden="true" />
+            Retiro sin costo en {STORE.address}
+          </p>
+          <h1 className="mt-5 font-display text-[40px] leading-[1.1] sm:text-[52px]">{title}</h1>
+          <p className="mt-3 max-w-2xl text-lg leading-relaxed text-[var(--ink-muted)]">
+            Precio y stock actualizados el mismo día. Elegí, pagá online y retiralo en el local, o pedí envío.
+          </p>
+        </div>
+      </header>
+      <div className="mx-auto max-w-[1320px] px-5 pt-8 sm:px-8 lg:px-12">
+        <nav aria-label="Rubros" className="no-scrollbar -mx-5 mb-8 overflow-x-auto px-5 sm:mx-0 sm:px-0">
           <ul className="flex gap-2">
             {CATEGORIES.map((cat) => {
               const count = cat.id === 'all' ? activeProducts.length : activeProducts.filter((p) => p.category === cat.id).length;
@@ -120,8 +123,8 @@ export function CatalogContent() {
                     aria-pressed={selected}
                     className={`tap-interactive flex min-h-11 items-center gap-2 whitespace-nowrap rounded-full px-4 text-sm font-semibold ${
                       selected
-                        ? 'bg-[var(--ink-primary)] text-white'
-                        : 'border border-[var(--amancay-border)] bg-white text-[var(--ink-primary)] hover:bg-[var(--bg-subtle)]'
+                        ? 'border border-[var(--brand-olive)] bg-[var(--brand-olive)] text-white'
+                        : 'border border-[var(--amancay-border)] bg-white text-[var(--ink-primary)] hover:border-[var(--brand-olive)]'
                     }`}
                   >
                     {cat.name}
@@ -136,7 +139,9 @@ export function CatalogContent() {
         </nav>
 
         <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-4">
-          <aside aria-label="Filtros" className="space-y-5 rounded-xl border border-[var(--amancay-border)] bg-white p-5 lg:col-span-1">
+          <aside aria-label="Filtros" className="space-y-5 lg:sticky lg:top-40 lg:col-span-1">
+            <div className="card-rest space-y-5 rounded-lg border border-[var(--amancay-border)] bg-white p-5">
+            <h2 className="font-display text-xl">Filtrar</h2>
             <div>
               <label htmlFor="catalog-search" className="mb-1.5 block text-sm font-semibold">
                 Buscar
@@ -145,6 +150,7 @@ export function CatalogContent() {
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--ink-muted)]" aria-hidden="true" />
                 <input
                   id="catalog-search"
+                  name="q"
                   type="search"
                   autoComplete="off"
                   value={draft}
@@ -189,7 +195,7 @@ export function CatalogContent() {
                 type="checkbox"
                 checked={onlyInStock}
                 onChange={(e) => setParam('stock', e.target.checked ? '1' : null)}
-                className="h-5 w-5 accent-[var(--ink-primary)]"
+                className="h-5 w-5 accent-[var(--brand-leather)]"
               />
               Solo con stock
             </label>
@@ -207,10 +213,26 @@ export function CatalogContent() {
                 Limpiar filtros
               </button>
             )}
+            </div>
+            <div className="hidden rounded-lg border border-[var(--brand-brass)] bg-[var(--bg-subtle)] p-5 lg:block">
+              <p className="font-display text-lg">Te ayudamos a elegir</p>
+              <p className="mt-1.5 text-sm leading-relaxed text-[var(--ink-muted)]">
+                Te mandamos fotos del modelo que tenemos en el local y te asesoramos por WhatsApp.
+              </p>
+              <a
+                href={whatsappUrl('Hola Amancay, quiero que me asesoren con un producto.')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-full border-[1.5px] border-[var(--brand-olive)] px-4 text-sm font-semibold text-[var(--brand-olive)] hover:bg-[var(--brand-olive-wash)]"
+              >
+                <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                Consultar
+              </a>
+            </div>
           </aside>
 
           <section aria-labelledby="results-count" className="space-y-6 lg:col-span-3">
-            <div className="flex flex-col justify-between gap-3 rounded-xl border border-[var(--amancay-border)] bg-white p-3.5 sm:flex-row sm:items-center">
+            <div className="flex flex-col justify-between gap-3 border-b border-[var(--amancay-border)] pb-4 sm:flex-row sm:items-center">
               <p id="results-count" aria-live="polite" className="text-sm text-[var(--ink-muted)]">
                 <strong className="text-[var(--ink-primary)]">{filteredProducts.length}</strong>{' '}
                 {filteredProducts.length === 1 ? 'producto' : 'productos'}
@@ -223,7 +245,7 @@ export function CatalogContent() {
                   id="catalog-sort"
                   value={sort}
                   onChange={(e) => setParam('orden', e.target.value === 'destacados' ? null : e.target.value)}
-                  className="rounded-md border border-[var(--amancay-border)] bg-[var(--bg-page)] px-3 py-2 text-sm"
+                  className="min-h-11 rounded-full border border-[var(--amancay-border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--ink-primary)]"
                 >
                   {SORTS.map((s) => (
                     <option key={s.id} value={s.id}>
@@ -235,7 +257,7 @@ export function CatalogContent() {
             </div>
 
             {filteredProducts.length === 0 ? (
-              <div className="space-y-3 rounded-xl border border-[var(--amancay-border)] bg-white p-12 text-center">
+              <div className="space-y-3 rounded-lg border border-[var(--amancay-border)] bg-white p-12 text-center">
                 <p className="font-display text-2xl">No hay productos con esos filtros</p>
                 <p className="text-[var(--ink-muted)]">Probá con otra palabra o sacá algún filtro.</p>
                 <button
@@ -245,13 +267,13 @@ export function CatalogContent() {
                     setDraft('');
                     router.replace(pathname, { scroll: false });
                   }}
-                  className="tap-interactive mt-2 min-h-11 rounded-full bg-[var(--ink-primary)] px-6 font-semibold text-white hover:bg-[var(--ink-secondary)]"
+                  className="tap-interactive mt-2 min-h-11 rounded-full bg-[var(--brand-leather)] px-6 font-semibold text-white hover:bg-[var(--brand-leather-hover)]"
                 >
                   Ver todo el catálogo
                 </button>
               </div>
             ) : (
-              <ul className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              <ul className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3">
                 {filteredProducts.map((product) => (
                   <li key={product.id}>
                     <ProductCard product={product} headingLevel={2} />

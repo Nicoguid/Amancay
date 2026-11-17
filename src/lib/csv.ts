@@ -41,13 +41,29 @@ export function parseCsv(text: string): string[][] {
     row.push(cell);
     rows.push(row);
   }
-  return rows.map((r) => r.map((c) => c.trim())).filter((r) => r.some((c) => c !== ''));
+  return rows.map((r) => r.map((c) => unguardFormula(c.trim()))).filter((r) => r.some((c) => c !== ''));
+}
+
+/*
+ * Inyección de fórmulas: Excel y Google Sheets ejecutan una celda que empieza con
+ * = + - @ (o tab / retorno). Un nombre de producto que viene de la planilla de un
+ * proveedor podría traer, por ejemplo, =HYPERLINK(...). Al exportar se antepone un
+ * apóstrofo (Excel lo muestra como texto) y al importar se quita, así ida y vuelta
+ * el nombre queda igual.
+ */
+const FORMULA_START = /^[=+\-@\t\r]/;
+function guardFormula(value: string): string {
+  return FORMULA_START.test(value) ? `'${value}` : value;
+}
+function unguardFormula(value: string): string {
+  return value.startsWith("'") && FORMULA_START.test(value.slice(1)) ? value.slice(1) : value;
 }
 
 /** Arma un CSV que Excel en español abre bien: BOM UTF-8, ";" y comillas escapadas. */
 export function toCsv(rows: (string | number)[][]): string {
   const escape = (value: string | number) => {
-    const s = String(value);
+    // Los números se exportan tal cual (un precio negativo no existe en la tienda).
+    const s = typeof value === 'number' ? String(value) : guardFormula(value);
     return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   return '﻿' + rows.map((r) => r.map(escape).join(';')).join('\r\n');

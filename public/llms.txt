@@ -1,0 +1,23 @@
+# Perfumería Amancay
+
+> Local de barrio en Av. Corrientes 3666, Almagro (Ciudad de Buenos Aires), a metros del subte B (estaciones Medrano y Carlos Gardel). Vende mates, bombillas, perfumes, desodorantes y combos de perfumería nacional (Kevin, Bross London, CaroCuore, Valeria Mazza, Colbert, Cannon, Ciel). La tienda online muestra precio y stock; se retira sin costo en el local o se envía por moto en CABA o por Correo Argentino a todo el país.
+
+Horario: lunes, martes, jueves y viernes de 9:00 a 13:00 y de 15:30 a 19:00; miércoles de 9:00 a 13:00; sábados de 9:00 a 14:00; domingos cerrado.
+Pagos: Mercado Pago, transferencia, efectivo o tarjeta en el local.
+Contacto: WhatsApp +54 9 2364 54-1928, mostrador@amancay.com.ar.
+
+## Catálogo
+
+- [Catálogo completo](/catalogo): todos los productos con precio y stock.
+- [Mates](/catalogo?rubro=mates): imperiales, camioneros, torpedos, poritos y mates de caldén y algarrobo.
+- [Bombillas](/catalogo?rubro=bombillas): pico de loro, chatas y de cuchara, en alpaca y acero inoxidable.
+- [Perfumes](/catalogo?rubro=perfumes): fragancias nacionales de hombre y mujer.
+- [Desodorantes](/catalogo?rubro=desodorantes): aerosoles de la misma línea que cada perfume.
+- [Combos](/catalogo?rubro=combos): perfume y desodorante de la misma línea, en caja.
+
+## Compra y legales
+
+- [Términos y condiciones](/legal/terminos)
+- [Cambios, devoluciones y reembolsos](/legal/cambios-y-devoluciones)
+- [Botón de arrepentimiento](/arrepentimiento)
+- [Política de privacidad](/legal/privacidad)

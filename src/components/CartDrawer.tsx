@@ -6,6 +6,7 @@ import { useStore } from '@/context/StoreContext';
 import { Dialog } from './Dialog';
 import { ProductImage } from './ProductImage';
 import { STORE, formatPrice, whatsappUrl } from '@/lib/storeConfig';
+import { CATEGORIES } from '@/lib/categories';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -36,8 +37,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
       open={isOpen}
       onClose={onClose}
       variant="drawer"
-      eyebrow="Tu carrito"
-      title={cartCount === 1 ? '1 producto' : `${cartCount} productos`}
+      title={cartCount > 0 ? `Tu carrito (${cartCount})` : 'Tu carrito'}
       footer={
         cart.length > 0 ? (
           <div className="space-y-3">
@@ -51,7 +51,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
             <Link
               href="/checkout"
               onClick={onClose}
-              className="tap-interactive flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[var(--ink-primary)] px-4 font-semibold text-white shadow-md hover:bg-[var(--ink-secondary)]"
+              className="tap-interactive flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[var(--brand-leather)] px-4 font-semibold text-white hover:bg-[var(--brand-leather-hover)]"
             >
               <span>Ir a pagar</span>
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -76,17 +76,13 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
           </div>
           <p className="mb-2 font-display text-2xl text-[var(--ink-primary)]">Tu carrito está vacío</p>
           <p className="mb-6 max-w-xs text-[var(--ink-muted)]">Elegí un rubro para empezar.</p>
-          <div className="flex w-full max-w-xs flex-col gap-2">
-            {[
-              { href: '/catalogo?rubro=mates', label: 'Ver mates' },
-              { href: '/catalogo?rubro=bombillas', label: 'Ver bombillas' },
-              { href: '/catalogo?rubro=perfumes', label: 'Ver perfumes' },
-            ].map((link) => (
+          <div className="flex w-full max-w-xs flex-wrap justify-center gap-2">
+            {CATEGORIES.map((c) => ({ href: `/catalogo?rubro=${c.id}`, label: c.label })).map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 onClick={onClose}
-                className="tap-interactive flex min-h-11 items-center justify-center rounded-full border border-[var(--amancay-border)] bg-[var(--bg-page)] px-5 font-semibold text-[var(--ink-primary)] hover:bg-[var(--bg-subtle)]"
+                className="tap-interactive flex min-h-11 items-center justify-center rounded-full border border-[var(--amancay-border)] bg-white px-5 text-sm font-semibold text-[var(--ink-primary)] hover:border-[var(--brand-olive)]"
               >
                 {link.label}
               </Link>
@@ -102,7 +98,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                 alt=""
                 width={72}
                 height={72}
-                className="h-18 w-18 shrink-0 rounded-md border border-[var(--amancay-border)] bg-[var(--bg-page)] object-cover"
+                className="photo-on-linen h-18 w-18 shrink-0 rounded bg-[var(--bg-subtle)] object-contain p-1.5"
               />
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">

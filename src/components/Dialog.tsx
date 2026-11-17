@@ -8,7 +8,6 @@ interface DialogProps {
   onClose: () => void;
   title: string;
   /** Texto chico arriba del título (opcional). */
-  eyebrow?: string;
   variant?: 'center' | 'drawer';
   children: ReactNode;
   footer?: ReactNode;
@@ -18,7 +17,7 @@ interface DialogProps {
  * Diálogo modal sobre <dialog> nativo: atrapa el foco, cierra con Escape,
  * deja el resto de la página inerte y devuelve el foco al botón que lo abrió.
  */
-export function Dialog({ open, onClose, title, eyebrow, variant = 'center', children, footer }: DialogProps) {
+export function Dialog({ open, onClose, title, variant = 'center', children, footer }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
 
@@ -39,7 +38,7 @@ export function Dialog({ open, onClose, title, eyebrow, variant = 'center', chil
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
-      className={`amancay-dialog font-sans text-[var(--ink-primary)] bg-white p-0 shadow-2xl backdrop:bg-[#1a1612]/60 ${
+      className={`amancay-dialog font-sans text-[var(--ink-primary)] bg-white p-0 shadow-2xl backdrop:bg-[var(--backdrop)] ${
         isDrawer
           ? 'amancay-drawer m-0 ml-auto h-dvh max-h-dvh w-full max-w-md border-l border-[var(--amancay-border)]'
           : 'm-auto w-[calc(100%-2rem)] max-w-md rounded-xl border border-[var(--amancay-border)]'
@@ -49,7 +48,6 @@ export function Dialog({ open, onClose, title, eyebrow, variant = 'center', chil
         <div className={isDrawer ? 'flex h-full flex-col' : 'flex max-h-[85dvh] flex-col'}>
           <div className="flex items-start justify-between gap-4 border-b border-[var(--amancay-border)] bg-[var(--bg-page)] px-5 py-4">
             <div>
-              {eyebrow && <p className="text-sm font-semibold text-[var(--ink-accent)]">{eyebrow}</p>}
               <h2 id={titleId} className="font-display text-2xl text-[var(--ink-primary)]">
                 {title}
               </h2>

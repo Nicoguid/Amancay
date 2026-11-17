@@ -18,11 +18,13 @@ import {
   formatPrice,
   parsePostalCode,
   postalZone,
-  transferPrice,
+  TAX,
+  netPrice,
+  PROMO_CFTEA,
   whatsappUrl,
 } from '@/lib/storeConfig';
+import { categoryInfo, categoryLabel } from '@/lib/categories';
 
-const CATEGORY_LABEL: Record<Product['category'], string> = { mates: 'Mates', bombillas: 'Bombillas', perfumes: 'Perfumes' };
 
 export function ProductDetail({ id }: { id: string }) {
   const { products, isHydrated } = useStore();
@@ -68,7 +70,7 @@ function ProductView({ product, products }: { product: Product; products: Produc
         <h1 className="mb-3 font-display text-3xl">{product.name}</h1>
         <p className="mb-6 text-[var(--ink-muted)]">Este producto no está disponible en este momento.</p>
         <Link href={`/catalogo?rubro=${product.category}`} className="font-semibold text-[var(--ink-accent)] underline">
-          Ver otros {CATEGORY_LABEL[product.category].toLowerCase()}
+          Ver otros {categoryLabel(product.category).toLowerCase()}
         </Link>
       </div>
     );
@@ -109,19 +111,19 @@ function ProductView({ product, products }: { product: Product; products: Produc
     stock <= 0 ? 'Sin stock por ahora' : stock <= 5 ? `Quedan ${stock} ${stock === 1 ? 'unidad' : 'unidades'}` : 'Hay stock';
 
   return (
-    <div className="min-h-screen bg-[var(--bg-page)] py-8 pb-24 text-[var(--ink-primary)] sm:py-12">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[var(--bg-page)] py-8 pb-24 text-[var(--ink-primary)] sm:py-10">
+      <div className="mx-auto max-w-[1320px] px-5 sm:px-8 lg:px-12">
         <nav aria-label="Ruta de navegación" className="mb-6 text-sm text-[var(--ink-muted)]">
           <ol className="flex flex-wrap items-center gap-2">
             <li>
-              <Link href="/" className="hover:underline">
+              <Link href="/" className="inline-flex min-h-11 items-center hover:text-[var(--brand-leather)] hover:underline">
                 Inicio
               </Link>
             </li>
             <li aria-hidden="true">/</li>
             <li>
-              <Link href={`/catalogo?rubro=${product.category}`} className="hover:underline">
-                {CATEGORY_LABEL[product.category]}
+              <Link href={`/catalogo?rubro=${product.category}`} className="inline-flex min-h-11 items-center hover:text-[var(--brand-leather)] hover:underline">
+                {categoryLabel(product.category)}
               </Link>
             </li>
             <li aria-hidden="true">/</li>
@@ -131,19 +133,25 @@ function ProductView({ product, products }: { product: Product; products: Produc
           </ol>
         </nav>
 
-        <div className="mb-12 rounded-2xl border border-[var(--amancay-border)] bg-white p-5 sm:p-10">
+        <div className="mb-16">
           <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12 lg:gap-14">
             {/* Galería */}
-            <div className="space-y-4 lg:col-span-7">
-              <div className="aspect-square w-full overflow-hidden rounded-xl border border-[var(--amancay-border)] bg-[var(--bg-page)]">
+            <div className="space-y-4 lg:sticky lg:top-40 lg:col-span-7">
+              <div className="relative aspect-square w-full overflow-hidden rounded-lg border border-[var(--amancay-border)] bg-[var(--bg-subtle)]">
                 <ProductImage
                   src={images[imageIndex]}
                   alt={images.length > 1 ? `${product.name}, foto ${imageIndex + 1} de ${images.length}` : product.name}
                   width={800}
                   height={800}
                   priority
-                  className="h-full w-full object-cover object-center"
+                  className="photo-on-linen h-full w-full object-contain p-10 sm:p-16"
                 />
+                {product.specifications?.['Terminación'] === 'Curado en horno' && (
+                  <p className="absolute bottom-4 left-4 inline-flex items-center gap-2 rounded-full border border-[var(--brand-brass)] bg-[var(--bg-page)] px-3.5 py-1.5 text-[13px] font-semibold">
+                    <Check className="h-3.5 w-3.5 text-[var(--brand-olive)]" aria-hidden="true" />
+                    Ya curado: listo para usar
+                  </p>
+                )}
               </div>
               {images.length > 1 && (
                 <ul className="no-scrollbar flex gap-3 overflow-x-auto pb-1">
@@ -154,11 +162,11 @@ function ProductView({ product, products }: { product: Product; products: Produc
                         onClick={() => setImageIndex(idx)}
                         aria-label={`Ver foto ${idx + 1} de ${images.length}`}
                         aria-pressed={imageIndex === idx}
-                        className={`tap-interactive block h-20 w-20 shrink-0 overflow-hidden rounded-lg border-2 ${
-                          imageIndex === idx ? 'border-[var(--ink-accent)]' : 'border-transparent opacity-75 hover:opacity-100'
+                        className={`tap-interactive block h-20 w-20 shrink-0 overflow-hidden rounded border-2 bg-[var(--bg-subtle)] ${
+                          imageIndex === idx ? 'border-[var(--brand-leather)]' : 'border-[var(--amancay-border)] hover:border-[var(--brand-brass)]'
                         }`}
                       >
-                        <ProductImage src={img} alt="" width={80} height={80} className="h-full w-full object-cover" />
+                        <ProductImage src={img} alt="" width={80} height={80} className="photo-on-linen h-full w-full object-contain p-2" />
                       </button>
                     </li>
                   ))}
@@ -169,14 +177,14 @@ function ProductView({ product, products }: { product: Product; products: Produc
             {/* Datos y compra */}
             <div className="space-y-6 lg:col-span-5">
               <div>
-                <p className="mb-2 text-sm font-semibold text-[var(--ink-accent)]">{product.brand}</p>
-                <h1 className="font-display text-3xl leading-tight tracking-tight sm:text-4xl">{product.name}</h1>
+                <p className="mb-3 text-sm font-semibold text-[var(--brand-leather)]">{product.brand}</p>
+                <h1 className="font-display text-[32px] leading-[1.15] sm:text-[40px]">{product.name}</h1>
                 <p className="mt-1 text-sm text-[var(--ink-muted)]">SKU {variant ? variant.sku : product.sku}</p>
               </div>
 
-              <div className="space-y-2 rounded-xl border border-[var(--amancay-border)] bg-[var(--bg-page)] p-5">
+              <div className="space-y-2 border-y border-[var(--amancay-border)] py-5">
                 <p className="flex flex-wrap items-baseline gap-3">
-                  <span className="font-display text-4xl tabular-nums">{formatPrice(price)}</span>
+                  <span className="font-display text-[44px] leading-none tabular-nums">{formatPrice(price)}</span>
                   {product.originalPrice && product.originalPrice > product.price && !variant?.priceModifier && (
                     <span className="tabular-nums text-[var(--ink-muted)] line-through">
                       <span className="sr-only">Antes </span>
@@ -184,15 +192,16 @@ function ProductView({ product, products }: { product: Product; products: Produc
                     </span>
                   )}
                 </p>
-                <p className="text-[var(--amancay-emerald)]">
-                  <strong className="tabular-nums">{formatPrice(transferPrice(price))}</strong> pagando por transferencia (
-                  {STORE.transferDiscountPct} % off)
-                </p>
+                {TAX.showNetPrice && (
+                  <p className="text-xs uppercase tracking-wide text-[var(--ink-muted)]">
+                    Precio sin impuestos nacionales: <span className="tabular-nums">{formatPrice(netPrice(price))}</span>
+                  </p>
+                )}
                 {promoActive && (
                   <p className="flex flex-wrap items-center gap-x-2 text-[var(--ink-muted)]">
                     <CreditCard className="h-4 w-4 text-[var(--ink-accent)]" aria-hidden="true" />
                     <span>
-                      {PROMO.installments} cuotas de {formatPrice(price / PROMO.installments)} con Galicia
+                      {PROMO.installments} cuotas de {formatPrice(price / PROMO.installments)} con Galicia · CFTEA {PROMO_CFTEA}
                     </span>
                     <button
                       type="button"
@@ -210,7 +219,7 @@ function ProductView({ product, products }: { product: Product; products: Produc
 
               {variants.length > 1 && (
                 <fieldset className="space-y-2">
-                  <legend className="mb-2 font-semibold">Elegí una opción</legend>
+                  <legend className="mb-2 font-semibold">Elegí {categoryInfo(product.category).variantNoun === 'tamaño' ? 'el tamaño' : 'una opción'}</legend>
                   <div className="flex flex-wrap gap-2">
                     {variants.map((v) => {
                       const selected = v.id === variantId;
@@ -221,10 +230,10 @@ function ProductView({ product, products }: { product: Product; products: Produc
                           onClick={() => setVariantId(v.id)}
                           aria-pressed={selected}
                           disabled={v.stock <= 0}
-                          className={`tap-interactive min-h-11 rounded-lg border px-3.5 py-2 text-left text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${
+                          className={`tap-interactive min-h-11 rounded-full border px-4 py-2 text-left text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${
                             selected
-                              ? 'border-[var(--ink-primary)] bg-[var(--ink-primary)] text-white'
-                              : 'border-[var(--amancay-border)] bg-[var(--bg-page)] text-[var(--ink-primary)] hover:bg-[var(--bg-subtle)]'
+                              ? 'border-[var(--brand-leather)] bg-[var(--brand-leather-wash)] text-[var(--brand-leather)] ring-1 ring-[var(--brand-leather)]'
+                              : 'border-[var(--amancay-border)] bg-white text-[var(--ink-primary)] hover:border-[var(--brand-brass)]'
                           }`}
                         >
                           {selected && <Check className="mr-1 inline h-4 w-4" aria-hidden="true" />}
@@ -244,7 +253,7 @@ function ProductView({ product, products }: { product: Product; products: Produc
                 </p>
                 {stock > 0 && (
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center rounded-full border border-[var(--amancay-border)] bg-[var(--bg-page)]" role="group" aria-label="Cantidad">
+                    <div className="flex items-center rounded-full border border-[var(--amancay-border)] bg-white" role="group" aria-label="Cantidad">
                       <button
                         type="button"
                         onClick={() => setQuantity(Math.max(1, qty - 1))}
@@ -271,15 +280,18 @@ function ProductView({ product, products }: { product: Product; products: Produc
                       type="button"
                       onClick={handleAddToCart}
                       className={`tap-interactive flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full px-5 font-semibold text-white shadow-md ${
-                        addStatus === 'added' ? 'bg-[var(--amancay-emerald)]' : 'bg-[var(--ink-primary)] hover:bg-[var(--ink-secondary)]'
+                        addStatus === 'added' ? 'bg-[var(--brand-olive)]' : 'bg-[var(--brand-leather)] hover:bg-[var(--brand-leather-hover)]'
                       }`}
                     >
                       {addStatus === 'added' ? (
                         <Check className="h-4 w-4" aria-hidden="true" />
                       ) : (
-                        <ShoppingBag className="h-4 w-4 text-[var(--amancay-gold-light)]" aria-hidden="true" />
+                        <ShoppingBag className="h-4 w-4" aria-hidden="true" />
                       )}
-                      <span>{addStatus === 'added' ? 'Agregado al carrito' : `Agregar al carrito · ${formatPrice(price * qty)}`}</span>
+                      <span>
+                        {addStatus === 'added' ? 'Agregado al carrito' : 'Agregar al carrito'}
+                        {addStatus !== 'added' && <span className="hidden tabular-nums sm:inline"> · {formatPrice(price * qty)}</span>}
+                      </span>
                     </button>
                   </div>
                 )}
@@ -294,7 +306,7 @@ function ProductView({ product, products }: { product: Product; products: Produc
                   )}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="tap-interactive flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[var(--whatsapp-action)] px-4 font-semibold text-white hover:bg-[var(--whatsapp-action-hover)]"
+                  className="tap-interactive flex min-h-12 w-full items-center justify-center gap-2 rounded-full border-[1.5px] border-[var(--brand-olive)] px-4 font-semibold text-[var(--brand-olive)] hover:bg-[var(--brand-olive-wash)]"
                 >
                   <MessageCircle className="h-4 w-4" aria-hidden="true" />
                   <span>Consultar por WhatsApp</span>
@@ -316,11 +328,11 @@ function ProductView({ product, products }: { product: Product; products: Produc
                     value={postalCode}
                     onChange={(e) => setPostalCode(e.target.value)}
                     placeholder="Código postal, ej.: 1176"
-                    className="min-w-0 flex-1 rounded-lg border border-[var(--amancay-border)] bg-[var(--bg-page)] px-3.5 py-2.5 text-sm focus:border-[var(--ink-accent)]"
+                    className="min-w-0 flex-1 rounded border border-[var(--amancay-border)] bg-white px-3.5 py-2.5 text-sm focus:border-[var(--brand-leather)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-leather)]"
                   />
                   <button
                     type="submit"
-                    className="tap-interactive min-h-11 rounded-lg bg-[var(--ink-primary)] px-5 text-sm font-semibold text-white hover:bg-[var(--ink-secondary)]"
+                    className="tap-interactive min-h-11 rounded-full border-[1.5px] border-[var(--brand-leather)] px-5 text-sm font-semibold text-[var(--brand-leather)] hover:bg-[var(--brand-leather)] hover:text-white"
                   >
                     Calcular
                   </button>
@@ -338,7 +350,7 @@ function ProductView({ product, products }: { product: Product; products: Produc
                 </div>
               </form>
 
-              <p className="flex items-start gap-2 rounded-lg bg-[var(--bg-page)] p-3 text-sm text-[var(--ink-muted)]">
+              <p className="flex items-start gap-2 rounded-lg border border-[var(--brand-brass)] bg-[var(--bg-subtle)] p-4 text-sm text-[var(--ink-secondary)]">
                 <Store className="mt-0.5 h-4 w-4 shrink-0 text-[var(--ink-accent)]" aria-hidden="true" />
                 Retiro sin costo en {STORE.address}. Te avisamos por WhatsApp cuando está listo.
               </p>
@@ -348,7 +360,7 @@ function ProductView({ product, products }: { product: Product; products: Produc
 
         {/* Información: secciones abiertas en lugar de pestañas */}
         <div className="mb-16 grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <section aria-labelledby="ficha-title" className="rounded-2xl border border-[var(--amancay-border)] bg-white p-6 sm:p-8">
+          <section aria-labelledby="ficha-title" className="card-rest rounded-lg border border-[var(--amancay-border)] bg-white p-6 sm:p-8">
             <h2 id="ficha-title" className="mb-4 font-display text-2xl">
               Ficha técnica
             </h2>
@@ -366,7 +378,7 @@ function ProductView({ product, products }: { product: Product; products: Produc
             )}
           </section>
           {product.curadoOGuia && (
-            <section aria-labelledby="guia-title" className="rounded-2xl border border-[var(--amancay-border)] bg-white p-6 sm:p-8">
+            <section aria-labelledby="guia-title" className="frame-double rounded-lg bg-white p-7 sm:p-9">
               <h2 id="guia-title" className="mb-4 font-display text-2xl">
                 {product.category === 'mates' ? 'Cómo curarlo' : 'Cuidados'}
               </h2>
@@ -378,14 +390,14 @@ function ProductView({ product, products }: { product: Product; products: Produc
         {related.length > 0 && (
           <section aria-labelledby="related-title">
             <div className="mb-6 flex items-end justify-between gap-4">
-              <h2 id="related-title" className="font-display text-3xl">
-                Más {CATEGORY_LABEL[product.category].toLowerCase()}
+              <h2 id="related-title" className="font-display text-[32px]">
+                Más {categoryLabel(product.category).toLowerCase()}
               </h2>
-              <Link href={`/catalogo?rubro=${product.category}`} className="font-semibold text-[var(--ink-accent)] hover:underline">
+              <Link href={`/catalogo?rubro=${product.category}`} className="link-brass">
                 Ver todos
               </Link>
             </div>
-            <ul className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <ul className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-4">
               {related.map((rel) => (
                 <li key={rel.id}>
                   <ProductCard product={rel} />
@@ -406,27 +418,28 @@ function ProductView({ product, products }: { product: Product; products: Produc
       <Dialog open={isFinancingOpen} onClose={() => setIsFinancingOpen(false)} title="Medios de pago">
         <ul className="space-y-3">
           {promoActive && (
-            <li className="rounded-xl border border-[var(--amancay-border)] bg-[var(--bg-page)] p-4">
+            <li className="rounded-lg border border-[var(--amancay-border)] bg-[var(--bg-page)] p-4">
               <p className="font-semibold">{PROMO.title}</p>
               <p className="tabular-nums text-[var(--amancay-emerald)]">
                 {PROMO.installments} cuotas de {formatPrice(price / PROMO.installments)}
               </p>
               <p className="text-sm text-[var(--ink-muted)]">
-                {PROMO.detail} Hasta el {PROMO_UNTIL_LABEL}.
+                {PROMO.detail} Hasta el {PROMO_UNTIL_LABEL}. Precio contado {formatPrice(price)}. Costo financiero total efectivo anual
+                (CFTEA): {PROMO_CFTEA}.
               </p>
             </li>
           )}
-          <li className="rounded-xl border border-[var(--amancay-border)] bg-[var(--bg-page)] p-4">
+          <li className="rounded-lg border border-[var(--amancay-border)] bg-[var(--bg-page)] p-4">
             <p className="font-semibold">Transferencia</p>
             <p className="text-sm text-[var(--ink-muted)]">
-              {STORE.transferDiscountPct} % off: pagás {formatPrice(transferPrice(price))}.
+              Al confirmar el pedido te mostramos el alias y el CBU.
             </p>
           </li>
-          <li className="rounded-xl border border-[var(--amancay-border)] bg-[var(--bg-page)] p-4">
+          <li className="rounded-lg border border-[var(--amancay-border)] bg-[var(--bg-page)] p-4">
             <p className="font-semibold">Mercado Pago</p>
             <p className="text-sm text-[var(--ink-muted)]">Tarjetas en 1 pago o con las cuotas que ofrezca tu banco.</p>
           </li>
-          <li className="rounded-xl border border-[var(--amancay-border)] bg-[var(--bg-page)] p-4">
+          <li className="rounded-lg border border-[var(--amancay-border)] bg-[var(--bg-page)] p-4">
             <p className="font-semibold">En el local</p>
             <p className="text-sm text-[var(--ink-muted)]">Efectivo o tarjeta al retirar en {STORE.address}.</p>
           </li>

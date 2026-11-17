@@ -3,31 +3,29 @@
 import { useStore } from '@/context/StoreContext';
 import { EditorialShowcase } from './EditorialShowcase';
 import { ProductCarousel } from './ProductCarousel';
+import { categoryInfo } from '@/lib/categories';
+import type { ProductCategory } from '@/lib/types';
 
 export function BestSellers() {
   const { products } = useStore();
   const active = products.filter((p) => p.active && p.stock > 0);
-  const best = active.filter((p) => p.isBestSeller);
-  return <EditorialShowcase products={best.length > 0 ? best : active} />;
+  // Primero los más vendidos; el filtro por rubro completa con el resto.
+  const sorted = [...active].sort((a, b) => Number(!!b.isBestSeller) - Number(!!a.isBestSeller));
+  return <EditorialShowcase products={sorted} />;
 }
 
-const CAROUSELS = [
-  { rubro: 'mates', title: 'Mates', subtitle: 'Calabaza y algarrobo, con virolas de alpaca o acero.' },
-  { rubro: 'bombillas', title: 'Bombillas', subtitle: 'Alpaca y acero inoxidable.' },
-  { rubro: 'perfumes', title: 'Perfumes', subtitle: 'Fragancias de la casa y marcas nacionales.' },
-] as const;
-
-export function CategoryCarousel({ rubro }: { rubro: (typeof CAROUSELS)[number]['rubro'] }) {
+/** Carrusel de un rubro (no se usa en el inicio actual; queda disponible para otras páginas). */
+export function CategoryCarousel({ rubro }: { rubro: ProductCategory }) {
   const { products } = useStore();
-  const config = CAROUSELS.find((c) => c.rubro === rubro)!;
+  const info = categoryInfo(rubro);
   const items = products.filter((p) => p.active && p.category === rubro);
   return (
     <ProductCarousel
-      title={config.title}
-      subtitle={config.subtitle}
+      title={info.label}
+      subtitle={info.blurb}
       products={items}
       viewAllLink={`/catalogo?rubro=${rubro}`}
-      viewAllLabel={`Ver todos los ${config.title.toLowerCase()}`}
+      viewAllLabel={`Ver ${info.label.toLowerCase()}`}
     />
   );
 }

@@ -1,87 +1,73 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import type { Product } from '@/lib/types';
-import { priceRange } from '@/context/StoreContext';
-import { formatPrice } from '@/lib/storeConfig';
-import { ProductImage } from './ProductImage';
+import type { Product, ProductCategory } from '@/lib/types';
+import { ProductCard } from './ProductCard';
+import { CATEGORIES } from '@/lib/categories';
 
 interface EditorialShowcaseProps {
   products: Product[];
 }
 
-/** Bloque de destacados: uno grande y hasta tres chicos. Lleva a la ficha para elegir variante. */
+const FILTERS: { id: 'todos' | ProductCategory; label: string }[] = [
+  { id: 'todos', label: 'Todos' },
+  ...CATEGORIES.map(({ id, label }) => ({ id, label })),
+];
+
+/** Los más pedidos en el mostrador, con chips para filtrar por rubro. */
 export function EditorialShowcase({ products }: EditorialShowcaseProps) {
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]['id']>('todos');
   if (products.length === 0) return null;
-  const [spotlight, ...rest] = products;
-  const sideItems = rest.slice(0, 3);
-  const spotlightPrice = priceRange(spotlight);
+  const visible = (filter === 'todos' ? products : products.filter((p) => p.category === filter)).slice(0, 8);
 
   return (
-    <section aria-labelledby="destacados-title" className="border-b border-[var(--amancay-border)] bg-white py-14 sm:py-20">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="mb-10 max-w-2xl">
-          <h2 id="destacados-title" className="font-display text-3xl tracking-tight text-[var(--ink-primary)] sm:text-4xl">
-            Lo que más sale del mostrador
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-12 lg:gap-8">
-          <article className="group relative flex flex-col overflow-hidden rounded-xl border border-[var(--amancay-border)] bg-[var(--bg-page)] transition-colors hover:border-[var(--amancay-gold)] lg:col-span-7">
-            <div className="relative aspect-[16/11] overflow-hidden bg-[var(--bg-subtle)]">
-              <ProductImage
-                src={spotlight.images[0]}
-                alt=""
-                width={800}
-                height={550}
-                className="h-full w-full object-cover object-center transition-transform duration-700 group-hover:scale-105"
-              />
-            </div>
-            <div className="space-y-3 p-6 sm:p-8">
-              <p className="text-sm font-semibold text-[var(--ink-accent)]">{spotlight.brand}</p>
-              <h3 className="font-display text-2xl leading-tight text-[var(--ink-primary)] sm:text-3xl">
-                <Link href={`/producto/${spotlight.id}`} className="after:absolute after:inset-0 after:content-[''] group-hover:text-[var(--ink-accent)]">
-                  {spotlight.name}
-                </Link>
-              </h3>
-              {spotlight.shortDescription && <p className="text-[var(--ink-muted)]">{spotlight.shortDescription}</p>}
-              <p className="font-display text-3xl tabular-nums text-[var(--ink-primary)]">
-                {spotlightPrice.min !== spotlightPrice.max && <span className="font-sans text-sm text-[var(--ink-muted)]">Desde </span>}
-                {formatPrice(spotlightPrice.min)}
-              </p>
-            </div>
-          </article>
-
-          <ul className="flex flex-col gap-4 lg:col-span-5">
-            {sideItems.map((item) => {
-              const range = priceRange(item);
+    <section aria-labelledby="destacados-title" className="border-y border-[var(--amancay-border)] bg-[var(--bg-subtle)] py-16 sm:py-20">
+      <div className="mx-auto max-w-[1320px] px-5 sm:px-8 lg:px-12">
+        <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <h2 id="destacados-title" className="font-display text-[32px] leading-tight text-[var(--ink-primary)] sm:text-4xl">
+              Destacados del mostrador
+            </h2>
+            <p className="mt-3 text-[17px] leading-relaxed text-[var(--ink-muted)]">Una selección de cada rubro, con precio y stock al día.</p>
+          </div>
+          <div role="group" aria-label="Filtrar destacados por rubro" className="flex flex-wrap gap-2">
+            {FILTERS.map((f) => {
+              const active = filter === f.id;
               return (
-                <li key={item.id}>
-                  <article className="group relative flex items-center gap-4 rounded-xl border border-[var(--amancay-border)] bg-[var(--bg-page)] p-4 transition-colors hover:border-[var(--amancay-gold)]">
-                    <ProductImage
-                      src={item.images[0]}
-                      alt=""
-                      width={112}
-                      height={112}
-                      className="h-24 w-24 shrink-0 rounded-lg border border-[var(--amancay-border)] bg-[var(--bg-subtle)] object-cover sm:h-28 sm:w-28"
-                    />
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <p className="text-sm font-semibold text-[var(--ink-accent)]">{item.brand}</p>
-                      <h3 className="font-display text-lg leading-snug text-[var(--ink-primary)]">
-                        <Link href={`/producto/${item.id}`} className="line-clamp-2 after:absolute after:inset-0 after:content-[''] group-hover:text-[var(--ink-accent)]">
-                          {item.name}
-                        </Link>
-                      </h3>
-                      <p className="font-display text-xl tabular-nums text-[var(--ink-primary)]">
-                        {range.min !== range.max && <span className="font-sans text-sm text-[var(--ink-muted)]">Desde </span>}
-                        {formatPrice(range.min)}
-                      </p>
-                    </div>
-                  </article>
-                </li>
+                <button
+                  key={f.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setFilter(f.id)}
+                  className={`tap-interactive min-h-11 rounded-full border px-5 text-sm font-semibold ${
+                    active
+                      ? 'border-[var(--brand-olive)] bg-[var(--brand-olive)] text-white'
+                      : 'border-[var(--amancay-border)] bg-white text-[var(--ink-primary)] hover:border-[var(--brand-olive)]'
+                  }`}
+                >
+                  {f.label}
+                </button>
               );
             })}
-          </ul>
+          </div>
+        </div>
+
+        <ul className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-4">
+          {visible.map((product) => (
+            <li key={product.id}>
+              <ProductCard product={product} showHighlight={false} />
+            </li>
+          ))}
+        </ul>
+
+        <div className="mt-10 flex justify-center">
+          <Link
+            href={filter === 'todos' ? '/catalogo' : `/catalogo?rubro=${filter}`}
+            className="tap-interactive inline-flex min-h-12 items-center justify-center rounded-full border-[1.5px] border-[var(--brand-leather)] px-7 text-[15px] font-semibold text-[var(--brand-leather)] hover:bg-[var(--brand-leather)] hover:text-white"
+          >
+            Ver todo el catálogo
+          </Link>
         </div>
       </div>
     </section>

@@ -5,20 +5,31 @@ import type { PaymentMethod, ShippingMethod } from './types';
  * Todo lo marcado como PLACEHOLDER se tiene que confirmar con la clienta (ver PRODUCT.md).
  */
 export const STORE = {
-  name: 'Perfumería Amancay',
+  name: 'Amancay',
+  // PLACEHOLDER: datos fiscales a completar por la clienta (Ley 24.240 y Disp. 954/2025 piden identificar al proveedor).
+  legal: {
+    holder: '[Razón social o nombre del titular]',
+    cuit: '[CUIT]',
+    taxStatus: '[Condición frente al IVA]',
+  },
   shortName: 'Amancay',
   address: 'Av. Corrientes 3666',
   neighborhood: 'Almagro, CABA',
   transit: 'Subte B, estaciones Medrano y Carlos Gardel',
-  // PLACEHOLDER
-  whatsappNumber: '5491136740676',
-  whatsappDisplay: '+54 9 11 3674-0676',
-  phoneHref: 'tel:+5491136740676',
+  whatsappNumber: '5492364541928',
+  whatsappDisplay: '+54 9 2364 54-1928',
+  phoneHref: 'tel:+5492364541928',
   email: 'mostrador@amancay.com.ar',
+  // Horario del local. Cada día puede tener uno o dos turnos (turno cortado).
   hours: [
-    { days: 'Lunes a viernes', time: '9:30 a 20:00' },
-    { days: 'Sábados', time: '10:00 a 14:00' },
+    { days: 'Lunes, martes, jueves y viernes', time: '9:00 a 13:00 y 15:30 a 19:00', dayCodes: ['Monday', 'Tuesday', 'Thursday', 'Friday'], shifts: [['09:00', '13:00'], ['15:30', '19:00']] },
+    { days: 'Miércoles', time: '9:00 a 13:00', dayCodes: ['Wednesday'], shifts: [['09:00', '13:00']] },
+    { days: 'Sábados', time: '9:00 a 14:00', dayCodes: ['Saturday'], shifts: [['09:00', '14:00']] },
+    { days: 'Domingos', time: 'Cerrado', dayCodes: [], shifts: [] },
   ],
+  /** Ficha del local en Google Maps (botones "Cómo llegar"). */
+  mapsUrl:
+    'https://www.google.com/maps/place/Perfumer%C3%ADa+Amancay/@-34.6038041,-58.4189002,17z/data=!3m1!4b1!4m6!3m5!1s0x95bcca8a13255fdf:0xeebfd0dc2090008d!8m2!3d-34.6038041!4d-58.4163253!16s%2Fg%2F11b6mnxfgp?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D',
   // PLACEHOLDER: datos de ejemplo, no son una cuenta real.
   transfer: {
     isPlaceholder: true,
@@ -27,9 +38,13 @@ export const STORE = {
     alias: 'ALIAS.A.CONFIRMAR',
     cbu: '0000000000000000000000',
   },
-  // PLACEHOLDER: PRODUCT.md dice "transferencia (con descuento)". El porcentaje está a confirmar.
-  transferDiscountPct: 10,
 } as const;
+
+/**
+ * Dirección pública de la tienda, para canonical, Open Graph, sitemap y datos estructurados.
+ * PLACEHOLDER: el dominio definitivo se configura con NEXT_PUBLIC_SITE_URL al publicar.
+ */
+export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000').replace(/\/$/, '');
 
 /** Promo bancaria. Se muestra solo si `enabled` y la fecha de hoy está dentro del rango. */
 export const PROMO = {
@@ -53,6 +68,24 @@ export function isPromoActive(now: Date = new Date()): boolean {
   const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   return today >= PROMO.from && today <= PROMO.until;
 }
+
+/**
+ * Res. 4/2025 (Secretaría de Industria y Comercio): junto al precio final se informa, en letra
+ * más chica, el importe sin IVA ni otros impuestos nacionales indirectos, con la leyenda
+ * "PRECIO SIN IMPUESTOS NACIONALES". PLACEHOLDER: la alícuota y si corresponde mostrarlo
+ * dependen de la condición fiscal del local (confirmar con el contador).
+ */
+export const TAX = {
+  showNetPrice: true,
+  vatRate: 0.21,
+} as const;
+
+export function netPrice(finalPrice: number): number {
+  return Math.round(finalPrice / (1 + TAX.vatRate));
+}
+
+/** Res. 4/2025, inc. d: en precios financiados va el precio contado, las cuotas y el CFTEA. */
+export const PROMO_CFTEA = '0,00 %';
 
 /** Tarifas de envío (PLACEHOLDER: proveedor de envíos sin decidir). */
 export const SHIPPING_RATES = {
@@ -96,6 +129,22 @@ export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   mostrador: 'Pago en el local',
 };
 
+/**
+ * Solo acepta fotos https:// o rutas del propio sitio (/productos/...).
+ * Descarta javascript:, data:, http:// sin cifrar y cualquier otro esquema.
+ */
+export function safeImageUrl(raw: string): string | null {
+  const value = raw.trim();
+  if (value === '') return null;
+  if (value.startsWith('/') && !value.startsWith('//')) return value;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
 export function whatsappUrl(text: string): string {
   return `https://wa.me/${STORE.whatsappNumber}?text=${encodeURIComponent(text)}`;
 }
@@ -107,13 +156,14 @@ export function formatPrice(value: number): string {
   return `$${numberFormat.format(Math.round(value))}`;
 }
 
-export function transferPrice(value: number): number {
-  return Math.round(value * (1 - STORE.transferDiscountPct / 100));
-}
-
 /** Quita acentos y pasa a minúsculas para búsquedas ("Perfumería" = "perfumeria"). */
 export function normalizeText(value: string): string {
   return value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+}
+
+/** URL pública del producto: el slug descriptivo (las URLs viejas /producto/mate-01 redirigen con 301). */
+export function productPath(product: { slug?: string; id: string }): string {
+  return `/producto/${product.slug || product.id}`;
 }
 
 export function slugify(value: string): string {

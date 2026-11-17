@@ -2,12 +2,15 @@
 
 import { useId, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Download, Upload, Plus, Undo2 } from 'lucide-react';
+import { Download, Upload, Plus, Undo2, LogOut } from 'lucide-react';
+import { logout } from './actions';
+import { MetricsTab } from './MetricsTab';
 import { useStore, applyPercentage, matchesMassFilter, type MassFilter, type CsvProductRow } from '@/context/StoreContext';
 import { Dialog } from '@/components/Dialog';
 import type { OrderStatus, Product, ProductCategory } from '@/lib/types';
-import { PAYMENT_LABELS, SHIPPING_LABELS, formatPrice, normalizeText, slugify } from '@/lib/storeConfig';
+import { PAYMENT_LABELS, SHIPPING_LABELS, formatPrice, normalizeText, safeImageUrl, slugify } from '@/lib/storeConfig';
 import { headerIndex, parseArNumber, parseCsv, toCsv } from '@/lib/csv';
+import { CATEGORIES as RUBROS } from '@/lib/categories';
 
 type Tab = 'prices' | 'products' | 'orders' | 'metrics';
 
@@ -18,11 +21,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'metrics', label: 'Resumen' },
 ];
 
-const CATEGORIES: { id: ProductCategory; label: string }[] = [
-  { id: 'mates', label: 'Mates' },
-  { id: 'bombillas', label: 'Bombillas' },
-  { id: 'perfumes', label: 'Perfumes' },
-];
+const CATEGORIES: { id: ProductCategory; label: string }[] = RUBROS.map(({ id, label }) => ({ id, label }));
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   pendiente: 'Pendiente de pago',
@@ -67,16 +66,23 @@ export function AdminPanel() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-page)] pb-16 text-[var(--ink-primary)]">
-      <div className="focus-on-dark border-b border-[var(--ink-secondary)] bg-[#14110e] py-6 text-white">
+      <div className="focus-on-dark border-b border-[var(--ink-secondary)] bg-[var(--ink-primary)] py-6 text-white">
         <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-4 px-4 sm:flex-row sm:items-center sm:px-6 lg:px-8">
           <div>
-            <p className="text-sm font-semibold text-[var(--amancay-gold-light)]">Panel del local</p>
-            <h1 className="mt-1 font-display text-3xl tracking-tight">Precios, stock y pedidos</h1>
-            <p className="mt-1 text-sm text-white/80">Demo: los cambios se guardan solo en este navegador.</p>
+            <h1 className="font-display text-3xl tracking-tight">Panel del local</h1>
+            <p className="mt-1 text-sm text-white/80">Precios, stock y pedidos. Demo: los cambios se guardan solo en este navegador.</p>
           </div>
-          <Link href="/" className="inline-flex min-h-11 items-center rounded-md border border-white/25 px-4 text-sm font-semibold hover:bg-white/10">
-            Ver la tienda
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/" className="inline-flex min-h-11 items-center rounded-md border border-white/25 px-4 text-sm font-semibold hover:bg-white/10">
+              Ver la tienda
+            </Link>
+            <form action={logout}>
+              <button type="submit" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-white/25 px-4 text-sm font-semibold hover:bg-white/10">
+                <LogOut className="h-4 w-4" aria-hidden="true" />
+                Cerrar sesión
+              </button>
+            </form>
+          </div>
         </div>
       </div>
 
@@ -115,7 +121,7 @@ export function AdminPanel() {
         ) : activeTab === 'orders' ? (
           <OrdersTab />
         ) : (
-          <MetricsTab />
+          <MetricsTabWithStock />
         )}
       </div>
     </div>
@@ -165,6 +171,12 @@ function PricesTab({ products }: { products: Product[] }) {
   const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Una planilla de catálogo pesa unos pocos KB: algo enorme es un archivo equivocado.
+    if (file.size > 2 * 1024 * 1024) {
+      setCsvReport('El archivo pesa más de 2 MB. ¿Es la planilla correcta? Exportala de nuevo como CSV.');
+      if (fileRef.current) fileRef.current.value = '';
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       const rows = parseCsv(String(reader.result ?? ''));
@@ -282,6 +294,8 @@ function PricesTab({ products }: { products: Product[] }) {
             <div className="flex gap-2">
               <input
                 id="mass-pct"
+              name="percentage"
+              autoComplete="off"
                 type="text"
                 inputMode="decimal"
                 value={percentage}
@@ -438,6 +452,8 @@ function ProductsTab({ products }: { products: Product[] }) {
             </label>
             <input
               id="prod-search"
+              name="search"
+              autoComplete="off"
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -496,6 +512,8 @@ function ProductsTab({ products }: { products: Product[] }) {
                         </label>
                         <input
                           id={`price-${p.id}`}
+              name="price"
+              autoComplete="off"
                           type="text"
                           inputMode="numeric"
                           value={editPrice}
@@ -523,6 +541,8 @@ function ProductsTab({ products }: { products: Product[] }) {
                                 </label>
                                 <input
                                   id={`stock-${p.id}-${v.id}`}
+              name="stock"
+              autoComplete="off"
                                   type="text"
                                   inputMode="numeric"
                                   value={editStock[v.id] ?? ''}
@@ -545,6 +565,8 @@ function ProductsTab({ products }: { products: Product[] }) {
                         </label>
                         <input
                           id={`stock-${p.id}`}
+              name="stock"
+              autoComplete="off"
                           type="text"
                           inputMode="numeric"
                           value={editStock._ ?? ''}
@@ -617,6 +639,8 @@ function NewProductDialog({ open, onClose }: { open: boolean; onClose: () => voi
     if (data.name.trim().length < 3) return setError('Escribí el nombre del producto.');
     if (price === null || price <= 0) return setError('El precio tiene que ser un número mayor a 0.');
     if (stock === null || stock < 0 || !Number.isInteger(stock)) return setError('El stock tiene que ser un número entero, 0 o más.');
+    const image = safeImageUrl(data.imageUrl);
+    if (data.imageUrl.trim() && !image) return setError('La foto tiene que ser un link que empiece con https://.');
     addProduct({
       name: data.name.trim(),
       slug: slugify(data.name),
@@ -626,7 +650,7 @@ function NewProductDialog({ open, onClose }: { open: boolean; onClose: () => voi
       price,
       stock,
       sku: data.sku.trim() || `SKU-${Date.now().toString().slice(-6)}`,
-      images: data.imageUrl.trim() ? [data.imageUrl.trim()] : [],
+      images: image ? [image] : [],
       active: true,
       isNew: true,
     });
@@ -642,6 +666,8 @@ function NewProductDialog({ open, onClose }: { open: boolean; onClose: () => voi
       </label>
       <input
         id={`${ids}-${key}`}
+        name={key}
+        autoComplete="off"
         value={data[key]}
         onChange={(e) => setData((d) => ({ ...d, [key]: e.target.value }))}
         className={field}
@@ -686,6 +712,8 @@ function NewProductDialog({ open, onClose }: { open: boolean; onClose: () => voi
           </label>
           <textarea
             id={`${ids}-description`}
+            name="description"
+            autoComplete="off"
             rows={3}
             value={data.description}
             onChange={(e) => setData((d) => ({ ...d, description: e.target.value }))}
@@ -736,6 +764,13 @@ function OrdersTab() {
               <td className="px-4 py-3">
                 {o.customer.fullName}
                 <span className="block text-xs text-[var(--ink-muted)]">{o.customer.phone}</span>
+                {o.consent?.length ? (
+                  <span className="mt-0.5 block text-xs text-[var(--brand-olive)]">
+                    Aceptó {o.consent.map((c) => `${c.doc} v${c.version}`).join(' y ')} · {dateFormat.format(new Date(o.consent[0].at))}
+                  </span>
+                ) : (
+                  <span className="mt-0.5 block text-xs text-[var(--ink-muted)]">Sin registro de consentimiento</span>
+                )}
               </td>
               <td className="px-4 py-3">{SHIPPING_LABELS[o.shippingMethod]}</td>
               <td className="px-4 py-3">{PAYMENT_LABELS[o.paymentMethod] ?? o.paymentMethod}</td>
@@ -748,7 +783,7 @@ function OrdersTab() {
                   id={`status-${o.id}`}
                   value={o.status}
                   onChange={(e) => updateOrderStatus(o.id, e.target.value as OrderStatus)}
-                  className="rounded-md border border-[var(--amancay-border)] bg-white px-2 py-2 text-sm"
+                  className="rounded-md border border-[var(--amancay-border)] bg-white px-2 py-2 text-sm text-[var(--ink-primary)]"
                 >
                   {(Object.keys(STATUS_LABELS) as OrderStatus[]).map((s) => (
                     <option key={s} value={s}>
@@ -767,47 +802,7 @@ function OrdersTab() {
 
 // ---------------- Resumen ----------------
 
-function MetricsTab() {
-  const { orders, products } = useStore();
-  const paidTotal = orders.filter((o) => o.status !== 'pendiente').reduce((sum, o) => sum + o.total, 0);
-  const active = products.filter((p) => p.active);
-  const low = lowStockLines(products);
-
-  const kpis = [
-    { label: 'Ventas cobradas', value: formatPrice(paidTotal), note: `${orders.length} pedidos en total` },
-    { label: 'Productos publicados', value: String(active.length), note: `En ${CATEGORIES.length} rubros` },
-    { label: 'Stock bajo', value: String(low.length), note: `Variantes o productos con ${LOW_STOCK} unidades o menos` },
-  ];
-
-  return (
-    <>
-      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {kpis.map((k) => (
-          <li key={k.label} className={card}>
-            <p className="text-sm font-semibold text-[var(--ink-muted)]">{k.label}</p>
-            <p className="mt-1 font-display text-4xl tabular-nums">{k.value}</p>
-            <p className="mt-1 text-sm text-[var(--ink-muted)]">{k.note}</p>
-          </li>
-        ))}
-      </ul>
-      {low.length > 0 && (
-        <section aria-labelledby="low-title" className={`${card} space-y-3`}>
-          <h2 id="low-title" className="font-display text-2xl">
-            Para reponer
-          </h2>
-          <ul className="divide-y divide-[var(--bg-subtle)]">
-            {low.map((l) => (
-              <li key={l.key} className="flex items-center justify-between gap-4 py-2.5 text-sm">
-                <span>
-                  {l.name}
-                  <span className="block text-xs text-[var(--ink-muted)]">{l.sku}</span>
-                </span>
-                <span className="font-semibold tabular-nums text-[var(--amancay-wine)]">{l.stock} u.</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-    </>
-  );
+function MetricsTabWithStock() {
+  const { products } = useStore();
+  return <MetricsTab lowStock={lowStockLines(products)} lowStockThreshold={LOW_STOCK} />;
 }

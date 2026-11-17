@@ -3,17 +3,21 @@ import { Suspense } from 'react';
 import { CatalogContent } from './CatalogContent';
 
 export const metadata: Metadata = {
-  title: 'Catálogo',
-  description: 'Mates, bombillas y perfumes con precio y stock. Retiro en Av. Corrientes 3666 o envío.',
+  title: 'Catálogo de mates, bombillas y perfumería en Almagro',
+  description: 'Mates, bombillas, perfumes, desodorantes y combos con precio y stock. Retiro en Av. Corrientes 3666 o envío.',
 };
 
 export default function CatalogPage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-          <h1 className="font-display text-4xl tracking-tight sm:text-5xl">Catálogo</h1>
-          <p className="mt-2 text-[var(--ink-muted)]">Cargando productos…</p>
+        <div className="border-b border-[var(--amancay-border)] bg-[var(--bg-subtle)]">
+          <div className="mx-auto max-w-[1320px] px-5 py-10 sm:px-8 sm:py-14 lg:px-12">
+            <h1 className="font-display text-[40px] leading-[1.1] sm:text-[52px]">Catálogo</h1>
+            <p className="mt-3 text-lg text-[var(--ink-muted)]" role="status">
+              Cargando productos…
+            </p>
+          </div>
         </div>
       }
     >

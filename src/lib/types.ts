@@ -1,4 +1,4 @@
-export type ProductCategory = 'mates' | 'bombillas' | 'perfumes';
+export type ProductCategory = 'mates' | 'bombillas' | 'perfumes' | 'desodorantes' | 'combos';
 
 export interface ProductVariant {
   id: string;
@@ -61,7 +61,8 @@ export interface Order {
     fullName: string;
     email: string;
     phone: string;
-    dni: string;
+    /** Solo para envíos por Correo Argentino. */
+    dni?: string;
     address?: string;
     city?: string;
     postalCode?: string;
@@ -69,10 +70,13 @@ export interface Order {
   };
   items: OrderItem[];
   subtotal: number;
-  discount: number;
   shippingMethod: ShippingMethod;
   shippingCost: number;
   paymentMethod: PaymentMethod;
   total: number;
   status: OrderStatus;
+  /** Pedido inventado para la demo del panel. */
+  isSample?: boolean;
+  /** Qué documentos aceptó, qué versión, cuándo y cómo. */
+  consent?: import('./consent').ConsentRecord[];
 }

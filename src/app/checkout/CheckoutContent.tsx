@@ -1,12 +1,16 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { ProductImage } from '@/components/ProductImage';
 import { ShoppingBag, ArrowLeft, Check, Copy, MessageCircle, Store, Truck, Bike, Info } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { ProductCard } from '@/components/ProductCard';
 import type { Order, PaymentMethod, ShippingMethod } from '@/lib/types';
 import { SHIPPING_LABELS, SHIPPING_RATES, STORE, formatPrice, shippingCost, whatsappUrl } from '@/lib/storeConfig';
+import { recordConsent, track } from '@/lib/consent';
+import { looksAutomated } from '@/lib/formGuard';
+import { AAIP_ACCESS_NOTICE, AAIP_AUTHORITY_NOTICE, legalPath } from '@/lib/legal';
 
 type FieldName = 'fullName' | 'dni' | 'phone' | 'email' | 'address' | 'city' | 'postalCode' | 'notes';
 type FormData = Record<FieldName, string>;
@@ -21,7 +25,9 @@ const inputClass = (invalid: boolean) =>
 function validate(data: FormData, shipping: ShippingMethod): Partial<Record<FieldName, string>> {
   const errors: Partial<Record<FieldName, string>> = {};
   if (data.fullName.trim().length < 3) errors.fullName = 'Escribí tu nombre y apellido.';
-  if (!/^\d{7,11}$/.test(data.dni.replace(/[.\-\s]/g, ''))) errors.dni = 'Escribí el DNI o CUIL sin puntos (7 a 11 números).';
+  // El DNI solo lo pide Correo Argentino: no se pide para retiro ni moto.
+  if (shipping === 'correo_argentino' && !/^\d{7,8}$/.test(data.dni.replace(/[.\-\s]/g, '')))
+    errors.dni = 'Escribí el DNI sin puntos (7 u 8 números).';
   if (data.phone.replace(/\D/g, '').length < 8) errors.phone = 'Escribí un teléfono con código de área, ej.: 11 2345 6789.';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim())) errors.email = 'Escribí un email válido, ej.: nombre@mail.com.';
   if (shipping !== 'pickup') {
@@ -40,6 +46,22 @@ export function CheckoutContent() {
   const [errors, setErrors] = useState<Partial<Record<FieldName, string>>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [order, setOrder] = useState<Order | null>(null);
+  // Dos casillas separadas y sin marcar: términos por un lado, privacidad por el otro.
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [acceptPrivacy, setAcceptPrivacy] = useState(false);
+  const [consentErrors, setConsentErrors] = useState<{ terms?: string; privacy?: string }>({});
+  const [honeypot, setHoneypot] = useState('');
+  const startedAt = useRef(0);
+  useEffect(() => {
+    startedAt.current = Date.now();
+  }, []);
+  // Conversión: llegó al checkout con productos (una vez por visita a la página).
+  const beganCheckout = useRef(false);
+  useEffect(() => {
+    if (!isHydrated || beganCheckout.current || cart.length === 0) return;
+    beganCheckout.current = true;
+    track('begin_checkout', { value: cartTotal, currency: 'ARS', items: cart.length });
+  }, [isHydrated, cart.length, cartTotal]);
   const formRef = useRef<HTMLFormElement>(null);
 
   if (!isHydrated) {
@@ -64,7 +86,7 @@ export function CheckoutContent() {
             <p className="mb-8 text-[var(--ink-muted)]">Sumá productos desde el catálogo para finalizar la compra.</p>
             <Link
               href="/catalogo"
-              className="tap-interactive inline-flex min-h-12 items-center rounded-full bg-[var(--ink-primary)] px-8 font-semibold text-white hover:bg-[var(--ink-secondary)]"
+              className="tap-interactive inline-flex min-h-12 items-center rounded-full bg-[var(--brand-leather)] px-8 font-semibold text-white hover:bg-[var(--brand-leather-hover)]"
             >
               Ir al catálogo
             </Link>
@@ -89,8 +111,7 @@ export function CheckoutContent() {
   }
 
   const shipping = shippingCost(shippingMethod, form.postalCode);
-  const discount = paymentMethod === 'transferencia' ? Math.round((cartTotal * STORE.transferDiscountPct) / 100) : 0;
-  const finalTotal = cartTotal - discount + (shipping ?? 0);
+  const finalTotal = cartTotal + (shipping ?? 0);
 
   const setField = (name: FieldName, value: string) => {
     setForm((f) => ({ ...f, [name]: value }));
@@ -108,15 +129,35 @@ export function CheckoutContent() {
     setSubmitError(null);
     const found = validate(form, shippingMethod);
     setErrors(found);
+    const consentFound = {
+      terms: acceptTerms ? undefined : 'Para confirmar tenés que aceptar los términos y condiciones.',
+      privacy: acceptPrivacy ? undefined : 'Para confirmar tenés que aceptar la política de privacidad.',
+    };
+    setConsentErrors(consentFound);
     const firstInvalid = (Object.keys(found) as FieldName[])[0];
     if (firstInvalid) {
       formRef.current?.querySelector<HTMLInputElement>(`[name="${firstInvalid}"]`)?.focus();
       return;
     }
+    if (consentFound.terms || consentFound.privacy) {
+      formRef.current?.querySelector<HTMLInputElement>(`[name="${consentFound.terms ? 'acceptTerms' : 'acceptPrivacy'}"]`)?.focus();
+      return;
+    }
+    if (looksAutomated(honeypot, startedAt.current)) {
+      setSubmitError('No pudimos confirmar el pedido. Esperá unos segundos y probá de nuevo, o escribinos por WhatsApp.');
+      return;
+    }
+    const consent = [
+      recordConsent({ doc: 'terminos', decision: 'aceptado', method: 'casilla en checkout' }),
+      recordConsent({ doc: 'privacidad', decision: 'aceptado', method: 'casilla en checkout' }),
+    ];
 
     const result = createOrder({
       customer: {
-        ...form,
+        fullName: form.fullName,
+        phone: form.phone,
+        email: form.email,
+        dni: shippingMethod === 'correo_argentino' ? form.dni.replace(/\D/g, '') : undefined,
         address: shippingMethod === 'pickup' ? undefined : form.address,
         city: shippingMethod === 'pickup' ? undefined : form.city,
         postalCode: shippingMethod === 'pickup' ? undefined : form.postalCode,
@@ -133,12 +174,12 @@ export function CheckoutContent() {
         totalPrice: item.unitPrice * item.quantity,
       })),
       subtotal: cartTotal,
-      discount,
       shippingMethod,
       shippingCost: shipping ?? 0,
       paymentMethod,
       total: finalTotal,
       status: 'pendiente',
+      consent,
     });
 
     if (!result.ok) {
@@ -146,6 +187,7 @@ export function CheckoutContent() {
       return;
     }
     setOrder(result.order);
+    track('purchase', { transaction_id: result.order.orderNumber, value: result.order.total, currency: 'ARS', items: result.order.items.length });
     window.scrollTo({ top: 0 });
   };
 
@@ -194,7 +236,7 @@ export function CheckoutContent() {
   ];
 
   const paymentOptions: { id: PaymentMethod; title: string; detail: string; disabled?: boolean }[] = [
-    { id: 'transferencia', title: `Transferencia (${STORE.transferDiscountPct} % off)`, detail: 'Al confirmar te mostramos alias y CBU.' },
+    { id: 'transferencia', title: 'Transferencia', detail: 'Al confirmar te mostramos alias y CBU.' },
     { id: 'mercadopago', title: 'Mercado Pago', detail: 'Tarjetas de crédito, débito o dinero en cuenta.' },
     {
       id: 'mostrador',
@@ -206,27 +248,34 @@ export function CheckoutContent() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-page)] py-8 text-[var(--ink-primary)] sm:py-12">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1200px] px-5 sm:px-8 lg:px-12">
         <Link href="/catalogo" className="mb-4 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-[var(--ink-accent)] hover:underline">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Seguir comprando
         </Link>
-        <h1 className="mb-2 font-display text-4xl tracking-tight">Finalizar compra</h1>
+        <h1 className="mb-2 font-display text-[40px] leading-tight">Finalizar compra</h1>
         <p className="mb-8 flex items-center gap-2 text-sm text-[var(--ink-muted)]">
           <Info className="h-4 w-4 shrink-0" aria-hidden="true" />
           Versión de demostración: no se cobra nada y el pedido queda guardado solo en este navegador.
         </p>
 
         <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
-          <section aria-labelledby="resumen-title" className="lg:sticky lg:top-24 lg:order-last lg:col-span-5">
-            <div className="space-y-4 rounded-2xl border border-[var(--amancay-border)] bg-white p-6">
+          <section aria-labelledby="resumen-title" className="lg:sticky lg:top-40 lg:order-last lg:col-span-5">
+            <div className="space-y-4 card-rest rounded-lg border border-[var(--amancay-border)] bg-white p-6 sm:p-8">
               <h2 id="resumen-title" className="font-display text-2xl">
                 Tu pedido
               </h2>
               <ul className="divide-y divide-[var(--bg-subtle)]">
                 {cart.map((item) => (
-                  <li key={item.id} className="flex justify-between gap-3 py-2.5">
-                    <div className="min-w-0">
+                  <li key={item.id} className="flex items-center justify-between gap-3 py-3">
+                    <ProductImage
+                      src={item.product.images[0]}
+                      alt=""
+                      width={64}
+                      height={64}
+                      className="photo-on-linen h-16 w-16 shrink-0 rounded bg-[var(--bg-subtle)] object-contain p-1.5"
+                    />
+                    <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold">{item.product.name}</p>
                       {item.selectedVariant && <p className="text-sm text-[var(--ink-accent)]">{item.selectedVariant.name}</p>}
                       <p className="text-sm text-[var(--ink-muted)]">Cantidad: {item.quantity}</p>
@@ -240,12 +289,6 @@ export function CheckoutContent() {
                   <dt>Productos</dt>
                   <dd className="tabular-nums">{formatPrice(cartTotal)}</dd>
                 </div>
-                {discount > 0 && (
-                  <div className="flex justify-between text-[var(--amancay-emerald)]">
-                    <dt>Descuento transferencia</dt>
-                    <dd className="tabular-nums">−{formatPrice(discount)}</dd>
-                  </div>
-                )}
                 <div className="flex justify-between text-[var(--ink-muted)]">
                   <dt>{SHIPPING_LABELS[shippingMethod]}</dt>
                   <dd className="tabular-nums">{shipping === null ? 'Falta el CP' : shipping === 0 ? 'Sin costo' : formatPrice(shipping)}</dd>
@@ -259,24 +302,23 @@ export function CheckoutContent() {
           </section>
 
           <form ref={formRef} noValidate onSubmit={handleSubmit} className="space-y-6 lg:col-span-7">
-            <fieldset className="space-y-4 rounded-2xl border border-[var(--amancay-border)] bg-white p-6">
-              <legend className="float-left mb-2 w-full font-display text-2xl">1. Tus datos</legend>
+            <fieldset className="space-y-4 card-rest rounded-lg border border-[var(--amancay-border)] bg-white p-6 sm:p-8">
+              <legend className="float-left mb-3 flex w-full items-center gap-3 font-display text-2xl"><span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--brand-leather)] font-sans text-sm font-semibold text-white">1</span><span className="sr-only">1. </span>Tus datos</legend>
               <div className="clear-both grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {field('fullName', 'Nombre y apellido', { type: 'text', autoComplete: 'name', placeholder: 'Ej.: Juana Pérez' })}
-                {field('dni', 'DNI o CUIL', { type: 'text', inputMode: 'numeric', autoComplete: 'off', spellCheck: false, placeholder: 'Sin puntos' })}
                 {field('phone', 'Teléfono / WhatsApp', { type: 'tel', autoComplete: 'tel', placeholder: 'Ej.: 11 2345 6789' })}
                 {field('email', 'Email', { type: 'email', autoComplete: 'email', spellCheck: false, placeholder: 'nombre@mail.com' })}
               </div>
             </fieldset>
 
-            <fieldset className="space-y-3 rounded-2xl border border-[var(--amancay-border)] bg-white p-6">
-              <legend className="float-left mb-2 w-full font-display text-2xl">2. Entrega</legend>
+            <fieldset className="space-y-3 card-rest rounded-lg border border-[var(--amancay-border)] bg-white p-6 sm:p-8">
+              <legend className="float-left mb-3 flex w-full items-center gap-3 font-display text-2xl"><span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--brand-leather)] font-sans text-sm font-semibold text-white">2</span><span className="sr-only">2. </span>Entrega</legend>
               <div className="clear-both space-y-2.5">
                 {shippingOptions.map(({ id, icon: Icon, title, detail, price }) => (
                   <label
                     key={id}
-                    className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors ${
-                      shippingMethod === id ? 'border-[var(--ink-primary)] bg-[var(--bg-page)]' : 'border-[var(--amancay-border)] hover:bg-[var(--bg-page)]'
+                    className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors ${
+                      shippingMethod === id ? 'border-[var(--brand-leather)] bg-[var(--brand-leather-wash)] ring-1 ring-[var(--brand-leather)]' : 'border-[var(--amancay-border)] hover:border-[var(--brand-brass)]'
                     }`}
                   >
                     <input
@@ -285,7 +327,7 @@ export function CheckoutContent() {
                       value={id}
                       checked={shippingMethod === id}
                       onChange={() => chooseShipping(id)}
-                      className="mt-1 h-5 w-5 accent-[var(--ink-primary)]"
+                      className="mt-1 h-5 w-5 accent-[var(--brand-leather)]"
                     />
                     <span className="flex-1">
                       <span className="flex items-baseline justify-between gap-3 font-semibold">
@@ -293,7 +335,7 @@ export function CheckoutContent() {
                           <Icon className="h-4 w-4 text-[var(--ink-accent)]" aria-hidden="true" />
                           {title}
                         </span>
-                        <span className="tabular-nums text-[var(--amancay-emerald)]">{price}</span>
+                        <span className="tabular-nums text-[var(--brand-olive)]">{price}</span>
                       </span>
                       <span className="mt-0.5 block text-sm text-[var(--ink-muted)]">{detail}</span>
                     </span>
@@ -302,6 +344,13 @@ export function CheckoutContent() {
               </div>
               {shippingMethod !== 'pickup' && (
                 <div className="space-y-4 border-t border-[var(--amancay-border)] pt-4">
+                  {shippingMethod === 'correo_argentino' &&
+                    field(
+                      'dni',
+                      'DNI de quien recibe',
+                      { type: 'text', inputMode: 'numeric', autoComplete: 'off', spellCheck: false, placeholder: 'Sin puntos' },
+                      'Correo Argentino lo pide para entregar el paquete.'
+                    )}
                   {field('address', 'Calle, número, piso y depto.', { type: 'text', autoComplete: 'street-address', placeholder: 'Ej.: Bulnes 742, 3.° B' })}
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {field('city', 'Localidad o barrio', { type: 'text', autoComplete: 'address-level2' })}
@@ -316,6 +365,7 @@ export function CheckoutContent() {
                 <textarea
                   id="co-notes"
                   name="notes"
+                  autoComplete="off"
                   rows={2}
                   value={form.notes}
                   onChange={(e) => setField('notes', e.target.value)}
@@ -325,15 +375,15 @@ export function CheckoutContent() {
               </div>
             </fieldset>
 
-            <fieldset className="space-y-3 rounded-2xl border border-[var(--amancay-border)] bg-white p-6">
-              <legend className="float-left mb-2 w-full font-display text-2xl">3. Pago</legend>
+            <fieldset className="space-y-3 card-rest rounded-lg border border-[var(--amancay-border)] bg-white p-6 sm:p-8">
+              <legend className="float-left mb-3 flex w-full items-center gap-3 font-display text-2xl"><span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--brand-leather)] font-sans text-sm font-semibold text-white">3</span><span className="sr-only">3. </span>Pago</legend>
               <div className="clear-both space-y-2.5">
                 {paymentOptions.map(({ id, title, detail, disabled }) => (
                   <label
                     key={id}
-                    className={`flex items-start gap-3 rounded-xl border p-4 transition-colors ${
+                    className={`flex items-start gap-3 rounded-lg border p-4 transition-colors ${
                       disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-[var(--bg-page)]'
-                    } ${paymentMethod === id ? 'border-[var(--ink-primary)] bg-[var(--bg-page)]' : 'border-[var(--amancay-border)]'}`}
+                    } ${paymentMethod === id ? 'border-[var(--brand-leather)] bg-[var(--brand-leather-wash)] ring-1 ring-[var(--brand-leather)]' : 'border-[var(--amancay-border)] hover:border-[var(--brand-brass)]'}`}
                   >
                     <input
                       type="radio"
@@ -342,7 +392,7 @@ export function CheckoutContent() {
                       checked={paymentMethod === id}
                       disabled={disabled}
                       onChange={() => setPaymentMethod(id)}
-                      className="mt-1 h-5 w-5 accent-[var(--ink-primary)]"
+                      className="mt-1 h-5 w-5 accent-[var(--brand-leather)]"
                     />
                     <span>
                       <span className="block font-semibold">{title}</span>
@@ -350,6 +400,58 @@ export function CheckoutContent() {
                     </span>
                   </label>
                 ))}
+              </div>
+            </fieldset>
+
+            <fieldset className="space-y-3 card-rest rounded-lg border border-[var(--amancay-border)] bg-white p-6 sm:p-8">
+              <legend className="float-left mb-3 font-display text-2xl">Antes de confirmar</legend>
+              <div className="clear-both space-y-3">
+                {(
+                  [
+                    ['acceptTerms', 'terms', acceptTerms, setAcceptTerms, 'Leí y acepto los', 'términos y condiciones', legalPath('terminos')],
+                    ['acceptPrivacy', 'privacy', acceptPrivacy, setAcceptPrivacy, 'Leí y acepto la', 'política de privacidad', legalPath('privacidad')],
+                  ] as const
+                ).map(([name, key, checked, set, prefix, label, href]) => (
+                  <div key={name}>
+                    <div className="flex items-start gap-3">
+                      <input
+                        id={`co-${name}`}
+                        name={name}
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => {
+                          set(e.target.checked);
+                          if (e.target.checked) setConsentErrors((c) => ({ ...c, [key]: undefined }));
+                        }}
+                        aria-invalid={!!consentErrors[key]}
+                        aria-describedby={consentErrors[key] ? `co-${name}-error` : undefined}
+                        className="mt-0.5 h-5 w-5 shrink-0"
+                      />
+                      <label htmlFor={`co-${name}`} className="leading-snug">
+                        {prefix}{' '}
+                        <a href={href} target="_blank" rel="noopener" className="link-brass">
+                          {label}
+                          <span className="sr-only"> (se abre en otra pestaña)</span>
+                        </a>
+                      </label>
+                    </div>
+                    {consentErrors[key] && (
+                      <p id={`co-${name}-error`} className="ml-8 mt-1 text-sm text-[var(--amancay-wine)]">
+                        {consentErrors[key]}
+                      </p>
+                    )}
+                  </div>
+                ))}
+                <details className="text-xs leading-relaxed text-[var(--ink-muted)]">
+                  <summary className="inline-flex min-h-8 cursor-pointer items-center font-semibold">Tus derechos sobre tus datos (Ley 25.326)</summary>
+                  <p className="mt-1">{AAIP_ACCESS_NOTICE}</p>
+                  <p className="mt-1">{AAIP_AUTHORITY_NOTICE}</p>
+                </details>
+              </div>
+              {/* Campo trampa para bots: invisible para personas y lectores de pantalla. */}
+              <div aria-hidden="true" className="absolute -left-[9999px] h-px w-px overflow-hidden">
+                <label htmlFor="co-website">No completar</label>
+                <input id="co-website" name="website" tabIndex={-1} autoComplete="off" value={honeypot} onChange={(e) => setHoneypot(e.target.value)} />
               </div>
             </fieldset>
 
@@ -366,7 +468,7 @@ export function CheckoutContent() {
 
             <button
               type="submit"
-              className="tap-interactive min-h-14 w-full rounded-full bg-[var(--ink-primary)] font-semibold text-white shadow-lg hover:bg-[var(--ink-secondary)]"
+              className="tap-interactive min-h-14 w-full rounded-full bg-[var(--brand-leather)] text-[17px] font-semibold text-white shadow-[var(--shadow-lift)] hover:bg-[var(--brand-leather-hover)]"
             >
               Confirmar pedido · {formatPrice(finalTotal)}
             </button>
@@ -391,9 +493,9 @@ function OrderConfirmation({ order }: { order: Order }) {
 
   return (
     <div className="min-h-screen bg-[var(--bg-page)] px-4 py-12 text-[var(--ink-primary)] sm:px-6 sm:py-16 lg:px-8">
-      <div className="mx-auto max-w-2xl space-y-6 rounded-2xl border border-[var(--amancay-border)] bg-white p-6 shadow-lg sm:p-10">
+      <div className="mx-auto max-w-2xl space-y-6 card-rest rounded-lg border border-[var(--amancay-border)] bg-white p-6 sm:p-8 shadow-lg sm:p-10">
         <div className="space-y-2 border-b border-[var(--amancay-border)] pb-6 text-center">
-          <Check className="mx-auto h-10 w-10 text-[var(--amancay-emerald)]" aria-hidden="true" />
+          <Check className="mx-auto h-10 w-10 text-[var(--brand-olive)]" aria-hidden="true" />
           <h1 className="font-display text-3xl">Gracias, {order.customer.fullName.split(' ')[0]}</h1>
           <p className="text-[var(--ink-muted)]">
             Registramos tu pedido <strong className="text-[var(--ink-primary)]">#{order.orderNumber}</strong> por{' '}
@@ -421,8 +523,8 @@ function OrderConfirmation({ order }: { order: Order }) {
         </div>
 
         {order.paymentMethod === 'transferencia' && (
-          <div className="focus-on-dark space-y-3 rounded-xl bg-[#14110e] p-5 text-white">
-            <p className="font-semibold text-[var(--amancay-gold-light)]">Datos para transferir</p>
+          <div className="space-y-3 rounded-lg border border-[var(--brand-brass)] bg-[var(--bg-subtle)] p-5">
+            <p className="font-display text-xl text-[var(--brand-leather)]">Datos para transferir</p>
             {STORE.transfer.isPlaceholder && (
               <p className="rounded-md bg-white/10 p-2 text-sm">Datos de ejemplo de la demo. No transfieras a esta cuenta.</p>
             )}
@@ -440,7 +542,7 @@ function OrderConfirmation({ order }: { order: Order }) {
               ))}
               <div className="flex justify-between border-t border-white/20 pt-2 text-base font-semibold">
                 <dt>Monto</dt>
-                <dd className="tabular-nums text-[var(--amancay-gold-light)]">{formatPrice(order.total)}</dd>
+                <dd className="font-semibold tabular-nums text-[var(--brand-leather)]">{formatPrice(order.total)}</dd>
               </div>
             </dl>
             <button
@@ -481,7 +583,7 @@ function OrderConfirmation({ order }: { order: Order }) {
           </a>
           <Link
             href="/"
-            className="tap-interactive flex min-h-12 items-center justify-center rounded-full bg-[var(--ink-primary)] px-6 font-semibold text-white hover:bg-[var(--ink-secondary)]"
+            className="tap-interactive flex min-h-12 items-center justify-center rounded-full bg-[var(--brand-leather)] px-6 font-semibold text-white hover:bg-[var(--brand-leather-hover)]"
           >
             Volver a la tienda
           </Link>

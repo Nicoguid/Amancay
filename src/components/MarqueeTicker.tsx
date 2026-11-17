@@ -1,64 +1,65 @@
 'use client';
 
-import { useState } from 'react';
-import { Pause, Play } from 'lucide-react';
+import Link from 'next/link';
 import { PROMO, PROMO_UNTIL_LABEL, STORE } from '@/lib/storeConfig';
 import { usePromoActive } from '@/lib/usePromo';
 
-/** Barra superior fija (sin animación): un solo mensaje, el más útil. */
+/**
+ * Barra superior fija (sin animación): un mensaje útil y el Botón de arrepentimiento,
+ * que la Disposición 954/2025 pide "a simple vista, en lugar destacado y en el primer acceso".
+ */
 export function AnnouncementBar() {
   const promoActive = usePromoActive();
   return (
-    <aside aria-label="Aviso" className="bg-[var(--ink-primary)] px-4 py-2 text-center text-sm text-[var(--bg-page)]">
-      {promoActive ? (
-        <p>
-          <span className="font-semibold">{PROMO.title}</span>
-          <span className="hidden sm:inline"> hasta el {PROMO_UNTIL_LABEL}</span>
-        </p>
-      ) : (
-        <p>
-          Retiro sin costo en {STORE.address}
-          <span className="hidden sm:inline"> · Envíos a CABA y a todo el país</span>
-        </p>
-      )}
+    <aside aria-label="Aviso" className="bg-[var(--brand-olive)] text-[13px] font-medium tracking-[0.01em] text-white">
+      <div className="mx-auto flex max-w-[1320px] flex-wrap items-center justify-center gap-x-6 gap-y-0.5 px-4 py-1.5 sm:justify-between sm:px-8 lg:px-12">
+        <span aria-hidden="true" className="hidden w-48 lg:block" />
+        {promoActive ? (
+          <p className="text-center">
+            <span className="font-semibold">{PROMO.title}</span>
+            <span className="hidden sm:inline"> hasta el {PROMO_UNTIL_LABEL}. Retiro sin costo en {STORE.address}.</span>
+          </p>
+        ) : (
+          <p className="text-center">
+            Retiro sin costo en {STORE.address}
+            <span className="hidden sm:inline"> · Envíos a CABA y a todo el país</span>
+          </p>
+        )}
+        <Link
+          href="/arrepentimiento"
+          className="focus-on-dark inline-flex min-h-8 items-center font-semibold underline decoration-white/60 underline-offset-4 hover:decoration-white lg:w-48 lg:justify-end"
+        >
+          Botón de arrepentimiento
+        </Link>
+      </div>
     </aside>
   );
 }
 
-const BRANDS = ['Amancay Orfebrería', 'Kevin', "Paula Cahen d'Anvers", 'Colbert', 'Amancay Tradición', 'Perfumería Amancay'];
+const BRANDS = ['Kevin', 'Bross London', 'CaroCuore', 'Valeria Mazza', 'Colbert', 'Cannon', 'Ciel'];
 
-/** Cinta de marcas con botón de pausa (WCAG 2.2.2). Se detiene sola con movimiento reducido. */
+/** Marcas que se consiguen en el mostrador. Lista quieta: se lee de un vistazo. */
 export function BrandsTicker() {
-  const [paused, setPaused] = useState(false);
   return (
-    <section
-      aria-label="Marcas que trabajamos"
-      className={`relative border-y border-[var(--amancay-border)] bg-[var(--bg-subtle)] py-5 ${paused ? 'marquee-paused' : ''}`}
-    >
-      <ul className="sr-only">
-        {BRANDS.map((brand) => (
-          <li key={brand}>{brand}</li>
-        ))}
-      </ul>
-      <div className="overflow-x-clip" aria-hidden="true">
-        <div className="animate-marquee-reverse flex items-center gap-12 whitespace-nowrap">
-          {BRANDS.concat(BRANDS).map((brand, idx) => (
-            <span key={idx} className="flex items-center gap-12 font-display text-xl text-[var(--ink-secondary)] sm:text-2xl">
-              <span>{brand}</span>
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--amancay-wine)]" />
-            </span>
+    <section aria-labelledby="marcas-title" className="border-y border-[var(--amancay-border)] bg-[var(--bg-page)] py-10">
+      <div className="mx-auto flex max-w-[1320px] flex-col gap-5 px-5 sm:px-8 lg:px-12">
+        <h2 id="marcas-title" className="shrink-0 text-[15px] font-semibold text-[var(--ink-muted)]">
+          Perfumería nacional que trabajamos
+        </h2>
+        <ul className="flex flex-wrap items-baseline gap-x-8 gap-y-3 sm:gap-x-10 lg:justify-between lg:gap-x-6">
+          {BRANDS.map((brand) => (
+            <li key={brand}>
+              <a
+                translate="no"
+                href={`/catalogo?q=${encodeURIComponent(brand)}`}
+                className="font-display text-2xl text-[var(--ink-secondary)] transition-colors hover:text-[var(--brand-leather)] sm:text-[28px]"
+              >
+                {brand}
+              </a>
+            </li>
           ))}
-        </div>
+        </ul>
       </div>
-      <button
-        type="button"
-        onClick={() => setPaused((p) => !p)}
-        aria-pressed={paused}
-        className="tap-interactive absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--amancay-border)] bg-white text-[var(--ink-primary)] shadow-sm"
-      >
-        {paused ? <Play className="h-4 w-4" aria-hidden="true" /> : <Pause className="h-4 w-4" aria-hidden="true" />}
-        <span className="sr-only">{paused ? 'Reanudar cinta de marcas' : 'Pausar cinta de marcas'}</span>
-      </button>
     </section>
   );
 }

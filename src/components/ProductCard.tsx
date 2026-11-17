@@ -5,28 +5,34 @@ import Link from 'next/link';
 import { ShoppingBag, Check } from 'lucide-react';
 import type { Product } from '@/lib/types';
 import { useStore, priceRange } from '@/context/StoreContext';
-import { formatPrice } from '@/lib/storeConfig';
+import { TAX, formatPrice, netPrice, productPath } from '@/lib/storeConfig';
 import { ProductImage } from './ProductImage';
-
-const CATEGORY_LABEL: Record<Product['category'], string> = {
-  mates: 'Mates',
-  bombillas: 'Bombillas',
-  perfumes: 'Perfumes',
-};
+import { categoryInfo } from '@/lib/categories';
 
 /** Una sola etiqueta por tarjeta, por prioridad. */
-function badgeFor(product: Product): { label: string; className: string } | null {
-  if (product.stock <= 0) return { label: 'Sin stock', className: 'bg-[var(--ink-secondary)] text-white' };
+function badgeFor(product: Product, showHighlight: boolean): { label: string; className: string } | null {
+  if (product.stock <= 0) return { label: 'Sin stock', className: 'bg-[var(--ink-primary)] text-white' };
   if (product.originalPrice && product.originalPrice > product.price) {
     const pct = Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100);
-    return { label: `${pct} % off`, className: 'bg-[var(--amancay-wine)] text-white' };
+    return { label: `${pct}\u00a0% off`, className: 'bg-[var(--brand-leather)] text-white' };
   }
-  if (product.isBestSeller) return { label: 'Más vendido', className: 'bg-[var(--amancay-emerald)] text-white' };
-  if (product.isNew) return { label: 'Nuevo', className: 'bg-white text-[var(--ink-primary)]' };
+  // "Destacado" es una elección del local, no un dato de ventas (PRODUCT.md: nada de cifras inventadas).
+  if (product.isBestSeller && showHighlight)
+    return { label: 'Destacado', className: 'border border-[var(--brand-brass)] bg-[var(--bg-page)] text-[var(--ink-primary)]' };
+  if (product.isNew) return { label: 'Nuevo', className: 'bg-[var(--brand-olive)] text-white' };
   return null;
 }
 
-export function ProductCard({ product, headingLevel = 3 }: { product: Product; headingLevel?: 2 | 3 }) {
+export function ProductCard({
+  product,
+  headingLevel = 3,
+  showHighlight = true,
+}: {
+  product: Product;
+  headingLevel?: 2 | 3;
+  /** En una sección que ya es de destacados, la etiqueta en cada tarjeta es ruido. */
+  showHighlight?: boolean;
+}) {
   const { addToCart } = useStore();
   const [status, setStatus] = useState<'idle' | 'added' | 'no-stock'>('idle');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -38,8 +44,8 @@ export function ProductCard({ product, headingLevel = 3 }: { product: Product; h
   const hasDiscount = !!product.originalPrice && product.originalPrice > product.price;
   const needsChoice = (product.variants?.length ?? 0) > 1;
   const outOfStock = product.stock <= 0;
-  const badge = badgeFor(product);
-  const href = `/producto/${product.id}`;
+  const badge = badgeFor(product, showHighlight);
+  const href = productPath(product);
   const Heading = headingLevel === 2 ? 'h2' : 'h3';
 
   const handleAdd = () => {
@@ -49,53 +55,51 @@ export function ProductCard({ product, headingLevel = 3 }: { product: Product; h
     timer.current = setTimeout(() => setStatus('idle'), 2500);
   };
 
+  const stockNote = outOfStock ? null : product.stock <= 5 ? `Quedan ${product.stock}` : 'Hay stock';
+
   return (
-    <article className="group relative flex h-full flex-col overflow-hidden rounded-lg border border-[var(--amancay-border)] bg-white transition-[border-color,box-shadow] duration-300 hover:border-[var(--amancay-gold)] hover:shadow-lg">
-      <div className="relative aspect-[4/5] overflow-hidden bg-[var(--bg-page)]">
+    <article className="card-rest card-lift group relative flex h-full flex-col overflow-hidden rounded-lg border border-[var(--amancay-border)] bg-white">
+      <div className="relative aspect-[4/5] overflow-hidden bg-[var(--bg-subtle)]">
         <ProductImage
           src={product.images[0]}
           alt=""
           width={400}
           height={500}
-          className="h-full w-full object-cover object-center transition-transform duration-500 ease-out group-hover:scale-105"
+          className="photo-on-linen h-full w-full object-contain p-6 motion-photo sm:p-8"
         />
-        {product.images[1] && (
-          <ProductImage
-            src={product.images[1]}
-            alt=""
-            width={400}
-            height={500}
-            className="absolute inset-0 h-full w-full object-cover object-center opacity-0 transition-opacity duration-500 ease-out group-hover:opacity-100"
-          />
-        )}
         {badge && (
-          <span className={`absolute left-2.5 top-2.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-xs ${badge.className}`}>
+          <span className={`absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-semibold ${badge.className}`}>
             {badge.label}
           </span>
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-1.5 p-4">
-        <p className="flex items-center justify-between gap-2 text-sm text-[var(--ink-muted)]">
-          <span className="truncate font-semibold text-[var(--ink-accent)]">{product.brand}</span>
-          <span className="shrink-0">{CATEGORY_LABEL[product.category]}</span>
+      <div className="flex flex-1 flex-col gap-2 px-4 pt-4 sm:px-5">
+        <p className="flex flex-col gap-1 text-[13px] sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+          <span translate="no" className="truncate font-semibold text-[var(--brand-leather)]">{product.brand}</span>
+          {stockNote && (
+            <span className="inline-flex shrink-0 items-center gap-1.5 font-medium text-[var(--brand-olive)]">
+              <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[var(--brand-olive)]" />
+              {stockNote}
+            </span>
+          )}
         </p>
 
-        <Heading className="font-display text-lg leading-snug text-[var(--ink-primary)]">
+        <Heading className="font-display text-[19px] font-medium leading-snug text-[var(--ink-primary)]">
           {/* El link cubre toda la tarjeta (una sola parada de Tab). */}
-          <Link href={href} className="line-clamp-2 after:absolute after:inset-0 after:content-[''] group-hover:text-[var(--ink-accent)]">
+          <Link href={href} className="line-clamp-2 after:absolute after:inset-0 after:content-[''] group-hover:text-[var(--brand-leather)]">
             {product.name}
           </Link>
         </Heading>
 
         {product.shortDescription && (
-          <p className="line-clamp-2 text-sm leading-relaxed text-[var(--ink-muted)]">{product.shortDescription}</p>
+          <p className="line-clamp-2 hidden text-sm leading-relaxed text-[var(--ink-muted)] sm:block">{product.shortDescription}</p>
         )}
 
-        <div className="mt-auto border-t border-[var(--bg-subtle)] pt-3">
+        <div className="mt-auto pt-3">
           <p className="flex flex-wrap items-baseline gap-x-2">
-            <span className="font-display text-2xl tabular-nums text-[var(--ink-primary)]">
-              {min !== max && <span className="font-sans text-sm text-[var(--ink-muted)]">Desde </span>}
+            <span className="font-display text-[26px] tabular-nums leading-none text-[var(--ink-primary)]">
+              {min !== max && <span className="font-sans text-sm font-medium text-[var(--ink-muted)]">Desde </span>}
               {formatPrice(min)}
             </span>
             {hasDiscount && (
@@ -105,10 +109,16 @@ export function ProductCard({ product, headingLevel = 3 }: { product: Product; h
               </span>
             )}
           </p>
+          {TAX.showNetPrice && (
+            <p className="mt-1.5 text-[11px] leading-tight text-[var(--ink-muted)]">
+              <span className="uppercase tracking-wide">Precio sin impuestos nacionales</span>{' '}
+              <span className="tabular-nums">{formatPrice(netPrice(min))}</span>
+            </p>
+          )}
         </div>
       </div>
 
-      <div className="relative z-10 px-4 pb-4">
+      <div className="relative z-10 px-4 pb-4 pt-4 sm:px-5 sm:pb-5">
         {outOfStock ? (
           <p className="flex min-h-11 items-center justify-center rounded-full bg-[var(--bg-subtle)] text-sm font-semibold text-[var(--ink-muted)]">
             Sin stock por ahora
@@ -118,25 +128,26 @@ export function ProductCard({ product, headingLevel = 3 }: { product: Product; h
             href={href}
             tabIndex={-1}
             aria-hidden="true"
-            className="tap-interactive flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-[var(--ink-primary)] px-3 text-sm font-semibold text-[var(--ink-primary)] hover:bg-[var(--ink-primary)] hover:text-white"
+            className="tap-interactive flex min-h-11 w-full items-center justify-center gap-2 rounded-full border-[1.5px] border-[var(--brand-leather)] px-3 text-sm font-semibold text-[var(--brand-leather)] hover:bg-[var(--brand-leather)] hover:text-white"
           >
-            Elegir opción
+            Elegir {categoryInfo(product.category).variantNoun}
           </Link>
         ) : (
           <button
             type="button"
             onClick={handleAdd}
-            className={`tap-interactive flex min-h-11 w-full items-center justify-center gap-2 rounded-full px-3 text-sm font-semibold text-white shadow-xs ${
-              status === 'added' ? 'bg-[var(--amancay-emerald)]' : 'bg-[var(--ink-primary)] hover:bg-[var(--ink-secondary)]'
+            className={`tap-interactive flex min-h-11 w-full items-center justify-center gap-2 rounded-full px-3 text-sm font-semibold text-white ${
+              status === 'added' ? 'bg-[var(--brand-olive)]' : 'bg-[var(--brand-leather)] hover:bg-[var(--brand-leather-hover)]'
             }`}
           >
             {status === 'added' ? (
               <Check className="h-4 w-4" aria-hidden="true" />
             ) : (
-              <ShoppingBag className="h-4 w-4 text-[var(--amancay-gold-light)]" aria-hidden="true" />
+              <ShoppingBag className="h-4 w-4" aria-hidden="true" />
             )}
             <span>
-              {status === 'added' ? 'Agregado al carrito' : 'Agregar al carrito'}
+              {status === 'added' ? 'Agregado' : 'Agregar'}
+              <span className="hidden sm:inline">{status === 'added' ? ' al carrito' : ' al carrito'}</span>
               <span className="sr-only">: {product.name}</span>
             </span>
           </button>
