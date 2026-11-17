@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { STORE, whatsappUrl } from '@/lib/storeConfig';
+import { STORE, waText, whatsappUrl } from '@/lib/storeConfig';
 import { looksAutomated, randomCode } from '@/lib/formGuard';
 
 type Request = { code: string; order: string; fullName: string; email: string; at: string };
@@ -53,7 +53,7 @@ export function ArrepentimientoForm() {
   };
 
   if (done) {
-    const text = `Hola Amancay, pido la revocación del pedido ${done.order} (botón de arrepentimiento). Código ${done.code}. ${done.fullName}, ${done.email}.`;
+    const text = `Hola Amancay, pido la revocación del pedido ${waText(done.order)} (botón de arrepentimiento). Código ${done.code}. ${waText(done.fullName)}, ${waText(done.email)}.`;
     return (
       <div role="status" className="mt-8 space-y-3 rounded-lg border border-[var(--brand-olive)] bg-[var(--brand-olive-wash)] p-6">
         <p className="font-display text-2xl">Recibimos tu pedido de revocación</p>

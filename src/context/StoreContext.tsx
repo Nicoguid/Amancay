@@ -300,6 +300,7 @@ function clearCart() {
 // ---------- Guardados y perfil (sin cuenta, en este navegador) ----------
 
 const MAX_SAVED = 60;
+const MAX_ORDERS = 300;
 
 /** Guarda o quita un producto. Devuelve true si quedó guardado. */
 function toggleSaved(productId: string): boolean {
@@ -452,7 +453,8 @@ function createOrder(input: Omit<Order, 'id' | 'orderNumber' | 'createdAt'>): Cr
       }
       return { ...product, stock: product.stock - lines.reduce((n, l) => n + l.quantity, 0) };
     }),
-    orders: [order, ...s.orders],
+    // Tope de pedidos guardados: el localStorage tiene ~5 MB y llenarlo rompe el carrito (QuotaExceededError).
+    orders: [order, ...s.orders].slice(0, MAX_ORDERS),
     cart: [],
   }));
   return { ok: true, order };

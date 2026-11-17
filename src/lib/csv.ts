@@ -83,6 +83,15 @@ export function parseArNumber(raw: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** Precio más alto que acepta el panel. Evita que un error de tipeo (un cero de más) llegue a la tienda. */
+export const MAX_PRICE = 10_000_000;
+
+/** Precio en pesos: número válido, mayor a 0 y no más que MAX_PRICE. Si no, null. */
+export function parseArsPrice(raw: string): number | null {
+  const n = parseArNumber(raw);
+  return n !== null && n > 0 && n <= MAX_PRICE ? n : null;
+}
+
 /** Encuentra la columna por nombre de encabezado (sin importar acentos ni mayúsculas). */
 export function headerIndex(headers: string[], ...names: string[]): number {
   const normalized = headers.map(normalizeText);

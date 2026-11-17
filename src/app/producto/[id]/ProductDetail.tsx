@@ -24,6 +24,7 @@ import {
   netPrice,
   PROMO_CFTEA,
   whatsappUrl,
+  waText,
 } from '@/lib/storeConfig';
 import { categoryInfo, categoryLabel } from '@/lib/categories';
 import { legalPath } from '@/lib/legal';
@@ -128,7 +129,7 @@ function ProductView({ product, products }: { product: Product; products: Produc
   const specs = Object.entries(product.specifications ?? {}).filter(([key]) => notes.length === 0 || !NOTE_KEYS.includes(key));
   const preCured = product.specifications?.['Terminación'] === 'Curado en horno';
   const whatsappHref = whatsappUrl(
-    `Hola Amancay, quiero consultar por ${product.name}${variant ? ` (${variant.name})` : ''}, ${formatPrice(price)}.`
+    `Hola Amancay, quiero consultar por ${waText(product.name)}${variant ? ` (${waText(variant.name)})` : ''}, ${formatPrice(price)}.`
   );
 
   const faq = [

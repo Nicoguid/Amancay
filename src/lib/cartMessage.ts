@@ -1,11 +1,11 @@
 import type { CartItem } from '@/context/StoreContext';
-import { formatPrice } from './storeConfig';
+import { formatPrice, waText } from './storeConfig';
 
 /** Texto del pedido para mandar por WhatsApp desde el carrito. */
 export function cartWhatsappMessage(cart: CartItem[], total: number, delivery?: string): string {
   const lines = cart.map((item, index) => {
-    const variant = item.selectedVariant ? ` (${item.selectedVariant.name})` : '';
-    return `${index + 1}. ${item.product.name}${variant} x ${item.quantity} = ${formatPrice(item.unitPrice * item.quantity)}`;
+    const variant = item.selectedVariant ? ` (${waText(item.selectedVariant.name)})` : '';
+    return `${index + 1}. ${waText(item.product.name)}${variant} x ${item.quantity} = ${formatPrice(item.unitPrice * item.quantity)}`;
   });
   return [
     'Hola Amancay, quiero consultar por este pedido:',

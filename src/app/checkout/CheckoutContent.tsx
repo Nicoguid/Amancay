@@ -7,7 +7,7 @@ import { ShoppingBag, ArrowLeft, Copy, MessageCircle, Store, Truck, Bike, Info, 
 import { useStore } from '@/context/StoreContext';
 import { ProductCard } from '@/components/ProductCard';
 import type { Order, PaymentMethod, ShippingMethod } from '@/lib/types';
-import { SHIPPING_LABELS, SHIPPING_RATES, STORE, formatPrice, shippingCost, whatsappUrl } from '@/lib/storeConfig';
+import { SHIPPING_LABELS, SHIPPING_RATES, STORE, formatPrice, shippingCost, whatsappUrl, waText } from '@/lib/storeConfig';
 import { recordConsent, track } from '@/lib/consent';
 import { looksAutomated } from '@/lib/formGuard';
 import { AAIP_ACCESS_NOTICE, AAIP_AUTHORITY_NOTICE, legalPath } from '@/lib/legal';
@@ -660,7 +660,7 @@ function OrderConfirmation({ order }: { order: Order }) {
 
         <div className="flex flex-col gap-3 sm:flex-row">
           <a
-            href={whatsappUrl(`Hola Amancay, hice el pedido #${order.orderNumber} a nombre de ${order.customer.fullName} por ${formatPrice(order.total)}.`)}
+            href={whatsappUrl(`Hola Amancay, hice el pedido #${order.orderNumber} a nombre de ${waText(order.customer.fullName)} por ${formatPrice(order.total)}.`)}
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-lg btn-whatsapp-solid flex-1"

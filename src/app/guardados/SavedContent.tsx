@@ -6,7 +6,7 @@ import { Bookmark, MessageCircle, Share2, ShoppingBag, Store, Images } from 'luc
 import { useStore, priceRange } from '@/context/StoreContext';
 import { ProductCard } from '@/components/ProductCard';
 import { Reveal } from '@/components/Reveal';
-import { STORE, formatPrice, whatsappUrl } from '@/lib/storeConfig';
+import { STORE, formatPrice, whatsappUrl, waText } from '@/lib/storeConfig';
 import { CATEGORIES } from '@/lib/categories';
 
 /* Guardados (Figma: "Guardados"). Sin cuenta: la lista vive en este navegador. */
@@ -35,7 +35,7 @@ export function SavedContent() {
   const shareMessage = [
     'Hola Amancay, guardé estos productos y quería consultar:',
     '',
-    ...saved.map((product, i) => `${i + 1}. ${product.name} (${formatPrice(priceRange(product).min)})`),
+    ...saved.map((product, i) => `${i + 1}. ${waText(product.name)} (${formatPrice(priceRange(product).min)})`),
   ].join('\n');
 
   return (

@@ -10,7 +10,7 @@ import { Dialog } from '@/components/Dialog';
 import type { OrderStatus, Product, ProductCategory } from '@/lib/types';
 import { PAYMENT_LABELS, SHIPPING_LABELS, STORE, formatPrice, normalizeText, safeImageUrl, slugify } from '@/lib/storeConfig';
 import { useTodayHours } from '@/lib/useStoreHours';
-import { headerIndex, parseArNumber, parseCsv, toCsv } from '@/lib/csv';
+import { MAX_PRICE, headerIndex, parseArNumber, parseArsPrice, parseCsv, toCsv } from '@/lib/csv';
 import { CATEGORIES as RUBROS } from '@/lib/categories';
 
 type Tab = 'prices' | 'products' | 'orders' | 'metrics';
@@ -36,7 +36,8 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
 /** Umbral de "stock bajo" por línea (variante o producto simple). */
 const LOW_STOCK = 5;
 
-const dateFormat = new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'short' });
+// Hora de Buenos Aires aunque el dispositivo esté configurado en otro huso.
+const dateFormat = new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Argentina/Buenos_Aires' });
 
 const card = 'card-rest rounded-lg bg-white p-5 sm:p-6';
 const field = 'field text-sm';
@@ -281,12 +282,12 @@ function PricesTab({ products }: { products: Product[] }) {
         const get = (index: number) => (index >= 0 ? row[index] ?? '' : '');
         const priceRaw = get(col.price);
         const stockRaw = get(col.stock);
-        const price = priceRaw ? parseArNumber(priceRaw) : undefined;
+        const price = priceRaw ? parseArsPrice(priceRaw) : undefined;
         const stock = stockRaw ? parseArNumber(stockRaw) : undefined;
         const categoryRaw = normalizeText(get(col.category));
         const category = CATEGORIES.find((c) => c.id === categoryRaw)?.id;
-        if (price === null || (price !== undefined && price <= 0)) {
-          problems.push(`fila ${line}: precio "${priceRaw}" no válido`);
+        if (price === null) {
+          problems.push(`fila ${line}: precio "${priceRaw}" no válido (mayor a 0 y hasta ${formatPrice(MAX_PRICE)})`);
           return;
         }
         if (stock === null || (stock !== undefined && (stock < 0 || !Number.isInteger(stock)))) {
@@ -500,9 +501,9 @@ function ProductsTab({ products }: { products: Product[] }) {
   };
 
   const saveEdit = (p: Product) => {
-    const price = parseArNumber(editPrice);
-    if (price === null || price <= 0) {
-      setEditError('El precio tiene que ser un número mayor a 0.');
+    const price = parseArsPrice(editPrice);
+    if (price === null) {
+      setEditError(`El precio tiene que ser un número mayor a 0 y hasta ${formatPrice(MAX_PRICE)}.`);
       return;
     }
     const stocks = Object.fromEntries(Object.entries(editStock).map(([k, v]) => [k, parseArNumber(v)]));
@@ -710,10 +711,10 @@ function NewProductDialog({ open, onClose }: { open: boolean; onClose: () => voi
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const price = parseArNumber(data.price);
+    const price = parseArsPrice(data.price);
     const stock = parseArNumber(data.stock || '0');
     if (data.name.trim().length < 3) return setError('Escribí el nombre del producto.');
-    if (price === null || price <= 0) return setError('El precio tiene que ser un número mayor a 0.');
+    if (price === null) return setError(`El precio tiene que ser un número mayor a 0 y hasta ${formatPrice(MAX_PRICE)}.`);
     if (stock === null || stock < 0 || !Number.isInteger(stock)) return setError('El stock tiene que ser un número entero, 0 o más.');
     const image = safeImageUrl(data.imageUrl);
     if (data.imageUrl.trim() && !image) return setError('La foto tiene que ser un link que empiece con https://.');

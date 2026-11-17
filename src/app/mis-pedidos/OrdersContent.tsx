@@ -6,14 +6,20 @@ import { Check, Copy, Info, Map as MapIcon, MapPin, MessageCircle, Package, Sear
 import type { Order, OrderStatus } from '@/lib/types';
 import { useStore } from '@/context/StoreContext';
 import { ProductImage } from '@/components/ProductImage';
-import { PAYMENT_LABELS, SHIPPING_LABELS, STORE, formatPrice, whatsappUrl } from '@/lib/storeConfig';
+import { PAYMENT_LABELS, SHIPPING_LABELS, STORE, formatPrice, whatsappUrl, waText } from '@/lib/storeConfig';
 
 /*
  * Mis pedidos (Figma: "Mis Pedidos"). Sin cuenta ni servidor: se listan los pedidos hechos desde
  * este navegador y se puede buscar uno por su código. La pantalla lo dice sin vueltas.
  */
 
-const dateFormat = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+const dateFormat = new Intl.DateTimeFormat('es-AR', {
+  day: 'numeric',
+  month: 'long',
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'America/Argentina/Buenos_Aires',
+});
 
 /** En qué paso está el pedido (0 a 3). */
 const STEP_INDEX: Record<OrderStatus, number> = {
@@ -125,7 +131,7 @@ export function OrdersContent() {
                 <span>
                   No encontramos ese código en este navegador. Si hiciste el pedido desde otro dispositivo,{' '}
                   <a
-                    href={whatsappUrl(`Hola Amancay, quiero consultar por el pedido ${code.trim()}.`)}
+                    href={whatsappUrl(`Hola Amancay, quiero consultar por el pedido ${waText(code)}.`)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="link-brass"
@@ -353,7 +359,7 @@ function OrderCard({ order }: { order: Order }) {
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <a
-                    href={whatsappUrl(`Hola Amancay, paso a retirar el pedido ${order.orderNumber} a nombre de ${order.customer.fullName}.`)}
+                    href={whatsappUrl(`Hola Amancay, paso a retirar el pedido ${order.orderNumber} a nombre de ${waText(order.customer.fullName)}.`)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn btn-primary flex-1"

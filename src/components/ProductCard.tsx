@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ShoppingBag, Check, MessageCircle } from 'lucide-react';
 import type { Product } from '@/lib/types';
 import { useStore, availableStock, priceRange } from '@/context/StoreContext';
-import { TAX, formatPrice, netPrice, productPath, whatsappUrl } from '@/lib/storeConfig';
+import { TAX, formatPrice, netPrice, productPath, whatsappUrl, waText } from '@/lib/storeConfig';
 import { ProductImage } from './ProductImage';
 import { SaveButton } from './SaveButton';
 import { categoryInfo } from '@/lib/categories';
@@ -203,7 +203,7 @@ export function ProductCard({
             </button>
           )}
           <a
-            href={whatsappUrl(`Hola Amancay, quiero consultar por ${product.name}${variant ? ` (${variant.name})` : ''}, ${formatPrice(price)}.`)}
+            href={whatsappUrl(`Hola Amancay, quiero consultar por ${waText(product.name)}${variant ? ` (${waText(variant.name)})` : ''}, ${formatPrice(price)}.`)}
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-quiet px-3 text-sm"
