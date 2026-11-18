@@ -261,7 +261,7 @@ function VitrinaPanel({
         <div aria-hidden="true" className="vitrina-shelf relative z-[11] -mx-3 h-3.5 sm:-mx-6" />
       </div>
 
-      <div className={`space-y-2 px-5 pb-6 pt-5 sm:px-7 ${wide ? 'lg:flex lg:items-end lg:justify-between lg:gap-10 lg:space-y-0' : ''}`}>
+      <div className={`vitrina-info vitrina-info--${side} space-y-2 px-5 pb-6 pt-5 sm:px-7 ${wide ? 'lg:flex lg:items-end lg:justify-between lg:gap-10 lg:space-y-0' : ''}`}>
         <div className="space-y-1.5">
           <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-[var(--ink-gold)]">{info.eyebrow}</p>
           <h2 className="font-display text-[26px] leading-tight sm:text-[30px]">{info.title}</h2>
