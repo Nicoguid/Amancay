@@ -179,14 +179,14 @@ export function SavedContent() {
           </>
         )}
 
-        <Reveal rise={10} className="focus-on-dark mt-10 flex flex-col gap-4 rounded-lg bg-[var(--brand-espresso)] p-6 text-[#fdf9f0] sm:flex-row sm:items-center sm:justify-between sm:p-8">
+        <Reveal rise={10} className="mt-10 flex flex-col gap-4 rounded-lg bg-[var(--bg-sand)] p-6 text-[var(--ink-primary)] sm:flex-row sm:items-center sm:justify-between sm:p-8">
           <div className="flex items-start gap-4">
             <span className="icon-tile h-12 w-12">
               <Images className="h-5 w-5" aria-hidden="true" />
             </span>
             <div>
               <h2 className="font-display text-xl sm:text-2xl">¿Querés verlos antes de decidir?</h2>
-              <p className="mt-1 max-w-xl text-[15px] leading-relaxed text-[#e6e2d9]">
+              <p className="mt-1 max-w-xl text-[15px] leading-relaxed text-[var(--ink-muted)]">
                 Escribinos y te mandamos fotos de los que tenemos en el local, o pasá por {STORE.address}.
               </p>
             </div>

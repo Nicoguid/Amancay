@@ -14,17 +14,17 @@ export function AnnouncementBar() {
   const promoActive = usePromoActive();
   const today = useTodayHours();
   return (
-    <aside aria-label="Aviso" className="focus-on-dark bg-[var(--brand-espresso)] text-[13px] font-medium text-[#f1ebdd]">
+    <aside aria-label="Aviso" className="border-b border-[var(--amancay-border)] bg-[var(--bg-sand)] text-[13px] font-medium text-[var(--ink-secondary)]">
       <div className="mx-auto flex max-w-[1320px] flex-wrap items-center justify-between gap-x-6 px-4 pt-2 sm:px-8 sm:pt-0 lg:px-12">
         {promoActive ? (
           <p>
-            <span className="font-semibold text-[var(--ink-gold-on-dark)]">{PROMO.title}</span>
+            <span className="font-semibold text-[var(--ink-gold)]">{PROMO.title}</span>
             <span className="hidden md:inline"> hasta el {PROMO_UNTIL_LABEL}</span>
           </p>
         ) : (
           <p>
-            <span className="font-semibold text-[var(--ink-gold-on-dark)]">Retiro sin costo</span>
-            <span className="hidden sm:inline"> en {STORE.address}, Almagro</span>
+            <span className="font-semibold text-[var(--ink-gold)]">Retiro sin costo</span>
+            <span className="hidden sm:inline"> en {STORE.address}</span>
           </p>
         )}
         <div className="flex items-center gap-x-5">

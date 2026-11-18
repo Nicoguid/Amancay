@@ -142,7 +142,7 @@ export function MatesShelf() {
       body="Calabaza forrada en cuero con virola de alpaca, acero o aluminio; caldén y algarrobo. Cada ficha explica cómo curarlo."
       categories={['mates', 'bombillas']}
       filters={MATE_FILTERS}
-      limit={4}
+      limit={8}
       columns={4}
       viewAllHref="/catalogo?rubro=mates"
       viewAllLabel="Ver todos los mates"
@@ -159,7 +159,7 @@ export function FragranceShelf() {
       body="Perfumes y desodorantes de las marcas que ya conocés, con sus notas de salida, corazón y fondo para elegir sin oler."
       categories={['perfumes', 'desodorantes', 'combos']}
       filters={FRAGRANCE_FILTERS}
-      limit={6}
+      limit={9}
       columns={3}
       showNotes
       viewAllHref="/catalogo?rubro=perfumes"

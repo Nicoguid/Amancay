@@ -125,13 +125,46 @@ export default function HomePage() {
       </section>
 
       <FragranceShelf />
+
+      {/* Bazar: el local lo tiene, pero todavía no está cargado en la tienda online. */}
+      <section id="bazar" aria-labelledby="bazar-title" className="bg-[var(--bg-page)] pb-12">
+        <div className="mx-auto max-w-[1320px] px-4 sm:px-8 lg:px-12">
+          <Reveal rise={10} className="flex flex-col gap-4 rounded-lg border border-[var(--amancay-border)] bg-white p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+            <div className="flex items-start gap-4">
+              <span className="icon-tile h-12 w-12">
+                <Gift className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div>
+                <p className="eyebrow">Bazar</p>
+                <h2 id="bazar-title" className="mt-1 font-display text-xl leading-snug sm:text-[22px]">
+                  En el local también hay bazar
+                </h2>
+                <p className="mt-1 max-w-2xl text-[15px] leading-relaxed text-[var(--ink-muted)]">
+                  Todavía no está en la tienda online. Escribinos y te contamos qué hay hoy en {STORE.address}.
+                </p>
+              </div>
+            </div>
+            <a
+              href={whatsappUrl('Hola Amancay, ¿qué tienen de bazar en el local?')}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-primary shrink-0"
+            >
+              <MessageCircle className="h-4 w-4" aria-hidden="true" />
+              Consultar por WhatsApp
+              <span className="sr-only"> (se abre en otra pestaña)</span>
+            </a>
+          </Reveal>
+        </div>
+      </section>
+
       <PromoCallout />
 
       {/* El local */}
       <section id="el-local" aria-labelledby="local-title" className="bg-[var(--bg-subtle)] py-14 sm:py-20">
         <div className="mx-auto grid max-w-[1320px] grid-cols-1 gap-6 px-4 sm:px-8 lg:grid-cols-2 lg:gap-8 lg:px-12">
           <Reveal rise={18} className="card-rest flex flex-col justify-center rounded-lg bg-white p-7 sm:p-10">
-            <p className="eyebrow eyebrow-rule">El local · Almagro</p>
+            <p className="eyebrow eyebrow-rule">El local</p>
             <h2 id="local-title" className="mt-3 font-display text-[30px] leading-[1.15] tracking-[-0.02em] sm:text-[40px]">
               Un comercio de barrio sobre Avenida Corrientes.
             </h2>

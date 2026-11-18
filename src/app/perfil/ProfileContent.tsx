@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, type CSSProperties } from 'react';
+import { FlipCard } from '@/components/FlipCard';
 import Link from 'next/link';
-import { Bike, Bookmark, Check, ChevronRight, MessageCircle, Package, ShieldCheck, Store, Trash2, Truck, UserRound } from 'lucide-react';
+import { ArrowLeft, Bike, Bookmark, Check, ChevronRight, CreditCard, MapPin, MessageCircle, Package, ShieldCheck, Store, Trash2, Truck, UserRound } from 'lucide-react';
 import { EMPTY_PROFILE, useStore, type CustomerProfile } from '@/context/StoreContext';
 import type { ShippingMethod } from '@/lib/types';
-import { SHIPPING_RATES, STORE, formatPrice, whatsappUrl } from '@/lib/storeConfig';
+import { PROMO, PROMO_UNTIL_LABEL, SHIPPING_RATES, STORE, formatPrice, whatsappUrl } from '@/lib/storeConfig';
 import { legalPath } from '@/lib/legal';
+import { usePromoActive } from '@/lib/usePromo';
 
 /*
  * Mi perfil (Figma: "Perfil de Usuario"), sin cuenta: los datos quedan solo en este navegador
@@ -26,7 +28,7 @@ function validate(data: CustomerProfile): Errors {
 }
 
 const DELIVERY: { id: ShippingMethod; icon: typeof Store; title: string; detail: string }[] = [
-  { id: 'pickup', icon: Store, title: 'Retiro en el local', detail: `${STORE.address}, Almagro. Sin costo.` },
+  { id: 'pickup', icon: Store, title: 'Retiro en el local', detail: `${STORE.address}. Sin costo.` },
   { id: 'moto_caba', icon: Bike, title: 'Moto en CABA', detail: `${formatPrice(SHIPPING_RATES.moto_caba)}. Se coordina por WhatsApp.` },
   { id: 'correo_argentino', icon: Truck, title: 'Correo Argentino', detail: `Desde ${formatPrice(SHIPPING_RATES.correo_gba)}, a todo el país.` },
 ];
@@ -37,6 +39,10 @@ export function ProfileContent() {
   const [errors, setErrors] = useState<Errors>({});
   const [status, setStatus] = useState<'idle' | 'saved' | 'cleared'>('idle');
   const [confirmClear, setConfirmClear] = useState(false);
+  // Tarjetas reversibles: Datos personales / Pagos y Entrega / Para envíos.
+  const [showPagos, setShowPagos] = useState(false);
+  const [showEnvios, setShowEnvios] = useState(false);
+  const promoActive = usePromoActive();
 
   // El formulario se completa una sola vez con lo guardado, cuando ya se leyó el navegador.
   const [loaded, setLoaded] = useState(false);
@@ -59,7 +65,11 @@ export function ProfileContent() {
     setErrors(found);
     const first = Object.keys(found)[0];
     if (first) {
-      e.currentTarget.querySelector<HTMLInputElement>(`[name="${first}"]`)?.focus();
+      // Si el error está en una cara que no se ve, se da vuelta la tarjeta antes de llevar el foco.
+      if (first === 'postalCode') setShowEnvios(true);
+      else setShowPagos(false);
+      const formEl = e.currentTarget;
+      requestAnimationFrame(() => requestAnimationFrame(() => formEl.querySelector<HTMLInputElement>(`[name="${first}"]`)?.focus()));
       return;
     }
     saveProfile(form);
@@ -95,6 +105,13 @@ export function ProfileContent() {
       </div>
     );
   };
+
+  const flipButton = (label: string, Icon: typeof Store, onClick: () => void) => (
+    <button type="button" data-flip-focus onClick={onClick} className="btn btn-quiet shrink-0 px-3 text-sm">
+      <Icon className="h-4 w-4" aria-hidden="true" />
+      {label}
+    </button>
+  );
 
   const firstName = (profile?.fullName ?? '').trim().split(' ')[0];
   const ordersCount = isHydrated ? myOrders.length : 0;
@@ -157,67 +174,121 @@ export function ProfileContent() {
           </aside>
 
           <form noValidate onSubmit={onSubmit} className="space-y-5 lg:col-span-8">
-            <fieldset className="enter card-rest space-y-4 rounded-lg bg-white p-5 sm:p-7" style={{ '--i': 2, '--rise': '16px' } as CSSProperties}>
-              <legend className="float-left mb-1 w-full">
-                <span className="eyebrow block">Contacto</span>
-                <span className="mt-1 block font-display text-2xl">Datos personales</span>
-              </legend>
-              <div className="clear-both grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {field('fullName', 'Nombre y apellido', { type: 'text', autoComplete: 'name', placeholder: 'Ej.: Juana Pérez…' })}
-                {field('phone', 'Teléfono / WhatsApp', { type: 'tel', autoComplete: 'tel', placeholder: 'Ej.: 11 2345 6789…' })}
-                <div className="sm:col-span-2">
-                  {field('email', 'Email', { type: 'email', autoComplete: 'email', spellCheck: false, placeholder: 'nombre@mail.com…' })}
-                </div>
-              </div>
-              <p className="text-sm text-[var(--ink-muted)]">Al teléfono te avisamos por WhatsApp cuando el pedido está listo.</p>
-            </fieldset>
+            <FlipCard
+              className="enter"
+              flipped={showPagos}
+              onFlip={setShowPagos}
+              front={
+                <fieldset className="card-rest h-full space-y-4 rounded-lg bg-white p-5 sm:p-7">
+                  <legend className="float-left mb-1 flex w-full flex-wrap items-start justify-between gap-3">
+                    <span>
+                      <span className="eyebrow block">Contacto</span>
+                      <span className="mt-1 block font-display text-2xl">Datos personales</span>
+                    </span>
+                    {flipButton('Ver medios de pago', CreditCard, () => setShowPagos(true))}
+                  </legend>
+                  <div className="clear-both grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {field('fullName', 'Nombre y apellido', { type: 'text', autoComplete: 'name', placeholder: 'Ej.: Juana Pérez…' })}
+                    {field('phone', 'Teléfono / WhatsApp', { type: 'tel', autoComplete: 'tel', placeholder: 'Ej.: 11 2345 6789…' })}
+                    <div className="sm:col-span-2">
+                      {field('email', 'Email', { type: 'email', autoComplete: 'email', spellCheck: false, placeholder: 'nombre@mail.com…' })}
+                    </div>
+                  </div>
+                  <p className="text-sm text-[var(--ink-muted)]">Al teléfono te avisamos por WhatsApp cuando el pedido está listo.</p>
+                </fieldset>
+              }
+              back={
+                <section aria-labelledby="pagos-title" className="h-full rounded-lg bg-[var(--bg-sand)] p-5 sm:p-7">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="eyebrow">Pagos</p>
+                      <h2 id="pagos-title" className="mt-1 font-display text-2xl">
+                        Medios de pago
+                      </h2>
+                    </div>
+                    {flipButton('Volver a tus datos', ArrowLeft, () => setShowPagos(false))}
+                  </div>
+                  <ul className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                    <li className="rounded-btn bg-white/80 p-4">
+                      <p className="font-semibold">Online</p>
+                      <p className="mt-0.5 text-sm text-[var(--ink-muted)]">Mercado Pago o transferencia bancaria.</p>
+                    </li>
+                    <li className="rounded-btn bg-white/80 p-4">
+                      <p className="font-semibold">Al retirar en el local</p>
+                      <p className="mt-0.5 text-sm text-[var(--ink-muted)]">También efectivo o tarjeta.</p>
+                    </li>
+                    <li className="rounded-btn bg-white/80 p-4 sm:col-span-2">
+                      <p className="font-semibold">Mismo precio con cualquier medio de pago</p>
+                      <p className="mt-0.5 text-sm text-[var(--ink-muted)]">
+                        {promoActive ? `${PROMO.title}, hasta el ${PROMO_UNTIL_LABEL}.` : 'Sin recargos ni descuentos por medio de pago.'}
+                      </p>
+                    </li>
+                  </ul>
+                  <p className="mt-4 text-sm text-[var(--ink-muted)]">No guardamos datos de tarjetas ni de cuentas.</p>
+                </section>
+              }
+            />
 
-            <fieldset className="enter card-rest rounded-lg bg-white p-5 sm:p-7" style={{ '--i': 3, '--rise': '16px' } as CSSProperties}>
-              <legend className="float-left mb-4 w-full">
-                <span className="eyebrow block">Entrega</span>
-                <span className="mt-1 block font-display text-2xl">¿Cómo recibís tus pedidos casi siempre?</span>
-              </legend>
-              <div className="clear-both grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-                {DELIVERY.map(({ id, icon: Icon, title, detail }) => {
-                  const selected = form.shippingMethod === id;
-                  return (
-                    <label
-                      key={id}
-                      className={`relative flex cursor-pointer flex-col gap-1.5 rounded-btn border p-4 transition-[border-color,background-color,box-shadow] duration-150 ${
-                        selected
-                          ? 'border-[var(--ink-gold)] bg-[var(--brand-leather-wash)] shadow-[0_0_0_1px_var(--ink-gold)]'
-                          : 'border-[var(--amancay-border)] hover:border-[var(--brand-brass)]'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="shippingMethod"
-                        value={id}
-                        checked={selected}
-                        onChange={() => setField('shippingMethod', id)}
-                        className="absolute right-3 top-3 h-5 w-5 accent-[var(--brand-espresso)]"
-                      />
-                      <Icon className="h-5 w-5 text-[var(--ink-gold)]" aria-hidden="true" />
-                      <span className="pr-6 font-semibold">{title}</span>
-                      <span className="text-sm leading-snug text-[var(--ink-muted)]">{detail}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </fieldset>
-
-            <fieldset className="enter card-rest space-y-4 rounded-lg bg-white p-5 sm:p-7" style={{ '--i': 4, '--rise': '16px' } as CSSProperties}>
-              <legend className="float-left mb-1 w-full">
-                <span className="eyebrow block">Para envíos</span>
-                <span className="mt-1 block font-display text-2xl">Dirección</span>
-              </legend>
-              <p className="clear-both text-sm text-[var(--ink-muted)]">Opcional. Solo hace falta si pedís envío por moto o correo.</p>
-              {field('address', 'Calle, número, piso y depto.', { type: 'text', autoComplete: 'street-address', placeholder: 'Ej.: Bulnes 742, 3.° B…' })}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {field('city', 'Localidad o barrio', { type: 'text', autoComplete: 'address-level2', placeholder: 'Ej.: Almagro, CABA…' })}
-                {field('postalCode', 'Código postal', { type: 'text', inputMode: 'numeric', autoComplete: 'postal-code', placeholder: 'Ej.: 1176…' })}
-              </div>
-            </fieldset>
+            <FlipCard
+              className="enter"
+              flipped={showEnvios}
+              onFlip={setShowEnvios}
+              front={
+                <fieldset className="card-rest h-full rounded-lg bg-white p-5 sm:p-7">
+                  <legend className="float-left mb-4 flex w-full flex-wrap items-start justify-between gap-3">
+                    <span>
+                      <span className="eyebrow block">Entrega</span>
+                      <span className="mt-1 block font-display text-2xl">¿Cómo recibís tus pedidos casi siempre?</span>
+                    </span>
+                    {flipButton('Dirección para envíos', MapPin, () => setShowEnvios(true))}
+                  </legend>
+                  <div className="clear-both grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                    {DELIVERY.map(({ id, icon: Icon, title, detail }) => {
+                      const selected = form.shippingMethod === id;
+                      return (
+                        <label
+                          key={id}
+                          className={`relative flex cursor-pointer flex-col gap-1.5 rounded-btn border p-4 transition-[border-color,background-color,box-shadow] duration-150 ${
+                            selected
+                              ? 'border-[var(--ink-gold)] bg-[var(--brand-leather-wash)] shadow-[0_0_0_1px_var(--ink-gold)]'
+                              : 'border-[var(--amancay-border)] hover:border-[var(--brand-brass)]'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="shippingMethod"
+                            value={id}
+                            checked={selected}
+                            onChange={() => setField('shippingMethod', id)}
+                            className="absolute right-3 top-3 h-5 w-5 accent-[var(--brand-espresso)]"
+                          />
+                          <Icon className="h-5 w-5 text-[var(--ink-gold)]" aria-hidden="true" />
+                          <span className="pr-6 font-semibold">{title}</span>
+                          <span className="text-sm leading-snug text-[var(--ink-muted)]">{detail}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+              }
+              back={
+                <fieldset className="h-full space-y-4 rounded-lg bg-[var(--bg-sand)] p-5 sm:p-7">
+                  <legend className="float-left mb-1 flex w-full flex-wrap items-start justify-between gap-3">
+                    <span>
+                      <span className="eyebrow block">Para envíos</span>
+                      <span className="mt-1 block font-display text-2xl">Dirección</span>
+                    </span>
+                    {flipButton('Volver a la entrega', ArrowLeft, () => setShowEnvios(false))}
+                  </legend>
+                  <p className="clear-both text-sm text-[var(--ink-muted)]">Opcional. Solo hace falta si pedís envío por moto o correo.</p>
+                  {field('address', 'Calle, número, piso y depto.', { type: 'text', autoComplete: 'street-address', placeholder: 'Ej.: Bulnes 742, 3.° B…' })}
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {field('city', 'Localidad o barrio', { type: 'text', autoComplete: 'address-level2', placeholder: 'Ej.: Caballito, CABA…' })}
+                    {field('postalCode', 'Código postal', { type: 'text', inputMode: 'numeric', autoComplete: 'postal-code', placeholder: 'Ej.: 1176…' })}
+                  </div>
+                </fieldset>
+              }
+            />
 
             <div className="rounded-lg bg-[var(--bg-sunken)] p-5 sm:flex sm:items-center sm:justify-between sm:gap-6">
               <p className="flex items-start gap-2.5 text-sm leading-relaxed text-[var(--ink-secondary)]">

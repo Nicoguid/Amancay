@@ -36,7 +36,7 @@ export function BrandMark({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
           Amancay
         </span>
         <span className={`mt-1 hidden text-[12px] font-bold uppercase leading-none tracking-[0.06em] sm:block ${sub}`}>
-          Perfumería · Mates · Almagro
+          Perfumería · Bazar · Mates
         </span>
       </span>
     </Link>

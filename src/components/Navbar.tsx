@@ -15,6 +15,7 @@ import { CATEGORIES } from '@/lib/categories';
 const NAV_LINKS = [
   { href: '/', label: 'Inicio' },
   ...CATEGORIES.map((c) => ({ href: `/catalogo?rubro=${c.id}`, label: c.label })),
+  { href: '/#bazar', label: 'Bazar' },
   { href: '/catalogo', label: 'Todo el catálogo' },
   { href: '/#el-local', label: 'El local' },
 ];
@@ -280,7 +281,7 @@ export function Navbar() {
             </div>
           </div>
 
-          <ul className="hidden items-center gap-7 border-t border-[var(--amancay-border)] text-[13px] font-bold uppercase tracking-[0.06em] text-[var(--ink-secondary)] lg:flex xl:gap-9">
+          <ul className="hidden items-center gap-5 border-t border-[var(--amancay-border)] text-[13px] font-bold uppercase tracking-[0.06em] text-[var(--ink-secondary)] lg:flex xl:gap-8">
             {NAV_LINKS.map((link) => (
               <li key={link.href}>
                 <Link

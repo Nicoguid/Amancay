@@ -6,6 +6,7 @@ import { Plus, ArrowDown, ArrowRight } from 'lucide-react';
 import type { Product, ProductCategory } from '@/lib/types';
 import { useStore, priceRange } from '@/context/StoreContext';
 import { ProductImage } from '@/components/ProductImage';
+import { ProductCard } from '@/components/ProductCard';
 import { STORE, formatPrice, productPath } from '@/lib/storeConfig';
 
 /*
@@ -90,25 +91,28 @@ export function Vitrina() {
   const single = visible.length === 1;
 
   return (
-    <section aria-labelledby="hero-title" className="focus-on-dark bg-[var(--brand-espresso)] text-[#fdf9f0]">
+    <section aria-labelledby="hero-title" className="hero-sand text-[var(--ink-primary)]">
       <div className="mx-auto max-w-[1320px] px-4 pb-8 pt-9 sm:px-8 sm:pb-10 sm:pt-12 lg:px-12">
         <div className="mx-auto max-w-4xl text-center">
+          <p className="enter eyebrow justify-center" style={{ '--i': 0 } as CSSProperties}>
+            Perfumería · Bazar · Mates
+          </p>
           <h1
             id="hero-title"
-            className="enter font-display text-[34px] leading-[1.12] tracking-[-0.02em] sm:text-[44px] lg:text-[52px]"
+            className="enter mt-3 font-display text-[34px] leading-[1.12] tracking-[-0.02em] sm:text-[44px] lg:text-[52px]"
             style={{ '--i': 0, '--rise': '16px' } as CSSProperties}
           >
-            Mates criollos y perfumería de siempre, en un mismo mostrador de Almagro.
+            Perfumería, bazar y mates de siempre, en un mismo mostrador.
           </h1>
           <p
-            className="enter mx-auto mt-4 max-w-2xl text-base leading-relaxed text-[#e6e2d9] sm:text-[17px]"
+            className="enter mx-auto mt-4 max-w-2xl text-base leading-relaxed text-[var(--ink-muted)] sm:text-[17px]"
             style={{ '--i': 1 } as CSSProperties}
           >
             Precio y stock a la vista. Comprá online y retirá sin costo en {STORE.address}, a metros del subte B.
           </p>
 
           <div className="enter mt-6 flex justify-center" style={{ '--i': 2, '--rise': '10px' } as CSSProperties}>
-            <div role="group" aria-label="Qué vidriera mirar" className="inline-flex justify-center gap-1 rounded-md bg-white/12 p-1 backdrop-blur-md">
+            <div role="group" aria-label="Qué vidriera mirar" className="inline-flex justify-center gap-1 rounded-md border border-[var(--bg-sand-deep)] bg-white/70 p-1 backdrop-blur-md">
               {SELECTOR.map((option) => {
                 const active = selection === option.id;
                 return (
@@ -121,7 +125,7 @@ export function Vitrina() {
                       setOpenId(null);
                     }}
                     className={`tap-interactive min-h-11 rounded-[3px] px-3.5 text-[13px] font-bold uppercase tracking-[0.05em] sm:px-4 ${
-                      active ? 'bg-[var(--brand-gold)] text-[var(--ink-on-gold)] shadow-sm' : 'text-[#e6e2d9] hover:bg-white/10'
+                      active ? 'bg-[var(--brand-gold)] text-[var(--ink-on-gold)] shadow-sm' : 'text-[var(--ink-secondary)] hover:bg-white'
                     }`}
                   >
                     <span aria-hidden="true" className="sm:hidden">
@@ -136,7 +140,7 @@ export function Vitrina() {
         </div>
 
         <div
-          className={`mt-7 grid grid-cols-1 gap-2 rounded-xl bg-[#170b06] p-2 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.45)] sm:mt-9 ${
+          className={`mt-7 grid grid-cols-1 gap-2 rounded-xl bg-[var(--bg-sand-deep)] p-2 shadow-[0_25px_50px_-20px_rgba(44,24,16,0.35)] sm:mt-9 ${
             single ? '' : 'lg:grid-cols-2'
           }`}
         >
@@ -155,10 +159,13 @@ export function Vitrina() {
           ))}
         </div>
 
+        {/* Al elegir un rubro, debajo aparece el listado de ese rubro (pedido de la dueña). */}
+        {single && <RubroList key={selection} side={visible[0]} products={products} />}
+
         <p className="enter mt-6 text-center" style={{ '--i': 7, '--rise': '8px' } as CSSProperties}>
           <a
             href="#mostrador"
-            className="inline-flex min-h-11 items-center gap-2 text-[13px] font-bold uppercase tracking-[0.08em] text-[#e6e2d9] hover:text-white"
+            className="inline-flex min-h-11 items-center gap-2 text-[13px] font-bold uppercase tracking-[0.08em] text-[var(--ink-secondary)] hover:text-[var(--ink-primary)]"
           >
             Explorar todo el mostrador
             <ArrowDown className="h-4 w-4" aria-hidden="true" />
@@ -192,7 +199,7 @@ function VitrinaPanel({
 
   return (
     <div
-      className={`overflow-hidden rounded-lg bg-[var(--brand-espresso)] ${animateIn ? 'swap-in' : 'enter'}`}
+      className={`overflow-hidden rounded-lg bg-white ${animateIn ? 'swap-in' : 'enter'}`}
       style={{ '--i': 3 + order, '--rise': '18px' } as CSSProperties}
     >
       {/* Interior iluminado de la vidriera, con el estante. */}
@@ -227,7 +234,7 @@ function VitrinaPanel({
                     onClick={() => setOpenId(open ? null : `${side}-${product.id}`)}
                     className="tap-interactive relative flex h-11 w-11 items-center justify-center"
                   >
-                    <span aria-hidden="true" className="hotspot-ping absolute h-8 w-8 rounded-full bg-[var(--ink-gold-on-dark)]" style={{ '--i': i + order * 3 } as CSSProperties} />
+                    <span aria-hidden="true" className="hotspot-ping absolute h-8 w-8 rounded-full bg-[var(--brand-gold)]" style={{ '--i': i + order * 3 } as CSSProperties} />
                     <span
                       className={`relative flex h-8 w-8 items-center justify-center rounded-full shadow-[0_6px_14px_-4px_rgba(29,15,9,0.5)] transition-[background-color,transform] duration-200 ease-[var(--ease-out)] ${
                         open ? 'rotate-45 bg-[var(--ink-primary)] text-white' : 'bg-[var(--brand-gold)] text-[var(--ink-on-gold)]'
@@ -269,20 +276,49 @@ function VitrinaPanel({
 
       <div className={`space-y-2 px-5 pb-6 pt-5 sm:px-7 ${wide ? 'lg:flex lg:items-end lg:justify-between lg:gap-10 lg:space-y-0' : ''}`}>
         <div className="space-y-1.5">
-          <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-[var(--ink-gold-on-dark)]">{info.eyebrow}</p>
-          <h2 className="font-display text-[26px] leading-tight text-[#fdf9f0] sm:text-[30px]">{info.title}</h2>
-          <p className="max-w-lg text-[15px] leading-relaxed text-[#e6e2d9]">{info.body}</p>
+          <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-[var(--ink-gold)]">{info.eyebrow}</p>
+          <h2 className="font-display text-[26px] leading-tight sm:text-[30px]">{info.title}</h2>
+          <p className="max-w-lg text-[15px] leading-relaxed text-[var(--ink-muted)]">{info.body}</p>
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-2">
-          <Link href={info.href} className={`btn ${side === 'mates' ? 'btn-gold' : 'btn-on-dark'}`}>
+          <Link href={info.href} className={`btn ${side === 'mates' ? 'btn-gold' : 'btn-primary'}`}>
             {info.cta}
             <ArrowRight className="arrow-nudge h-4 w-4" aria-hidden="true" />
           </Link>
-          <p className="text-[13px] font-semibold tabular-nums text-[#fdf9f0]/75">
+          <p className="text-[13px] font-semibold tabular-nums text-[var(--ink-muted)]">
             {inStock} {inStock === 1 ? info.noun[0] : info.noun[1]}
           </p>
         </div>
       </div>
     </div>
+  );
+}
+
+/** Listado más amplio del rubro elegido en la vidriera: hasta 8 productos con stock y el acceso al catálogo. */
+function RubroList({ side, products }: { side: Side; products: Product[] }) {
+  const info = SIDES[side];
+  const all = products
+    .filter((p) => p.active && p.stock > 0 && info.categories.includes(p.category))
+    .sort((a, b) => Number(!!b.isBestSeller) - Number(!!a.isBestSeller));
+  const shown = all.slice(0, 8);
+  return (
+    <section aria-label={`Productos de ${info.eyebrow.toLowerCase()}`} className="swap-in mt-6 rounded-xl bg-white/80 p-3 sm:p-5">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3 px-1">
+        <p className="font-display text-xl sm:text-2xl">
+          {info.eyebrow}: <span className="tabular-nums">{all.length}</span> {all.length === 1 ? info.noun[0] : info.noun[1]}
+        </p>
+        <Link href={info.href} className="link-brass inline-flex min-h-11 items-center gap-1.5">
+          Ver todo en el catálogo
+          <ArrowRight className="arrow-nudge h-4 w-4" aria-hidden="true" />
+        </Link>
+      </div>
+      <ul className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        {shown.map((product) => (
+          <li key={product.id}>
+            <ProductCard product={product} />
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

@@ -9,7 +9,7 @@ export function PromoCallout() {
   const active = usePromoActive();
   if (!active) return null;
   return (
-    <section aria-labelledby="promo-title" className="focus-on-dark bg-[var(--brand-leather)] text-white">
+    <section aria-labelledby="promo-title" className="bg-[var(--bg-sand)] text-[var(--ink-primary)]">
       <div className="mx-auto flex max-w-[1320px] flex-col gap-6 px-5 py-12 sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:px-12">
         <div className="flex items-start gap-5">
           <span
@@ -23,14 +23,14 @@ export function PromoCallout() {
             <h2 id="promo-title" className="font-display text-[28px] leading-tight sm:text-[32px]">
               {PROMO.title}
             </h2>
-            <p className="text-white/85">
+            <p className="text-[var(--ink-muted)]">
               {PROMO.detail} Vigente hasta el {PROMO_UNTIL_LABEL}. CFTEA {PROMO_CFTEA}.
             </p>
           </div>
         </div>
         <Link
           href="/catalogo"
-          className="btn btn-lg btn-gold shrink-0"
+          className="btn btn-lg btn-primary shrink-0"
         >
           Ver el catálogo
         </Link>

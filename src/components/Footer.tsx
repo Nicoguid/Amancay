@@ -24,7 +24,7 @@ export function Footer() {
               </p>
             </div>
             <p className="max-w-sm leading-relaxed">
-              Perfumería, mates y bombillas sobre Av. Corrientes, en Almagro. Comprá online y retirá en el local.
+              Perfumería, bazar y mates sobre Av. Corrientes, en Almagro. Comprá online y retirá en el local.
             </p>
             <ul aria-label="Rubros" className="flex flex-wrap gap-x-4 gap-y-0">
               {CATEGORIES.map((c) => (

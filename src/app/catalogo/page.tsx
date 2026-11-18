@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import { CatalogContent } from './CatalogContent';
 
 export const metadata: Metadata = {
-  title: 'Catálogo de mates, bombillas y perfumería en Almagro',
+  title: 'Catálogo de perfumería, bazar y mates',
   description: 'Mates, bombillas, perfumes, desodorantes y combos con precio y stock. Retiro en Av. Corrientes 3666 o envío.',
 };
 

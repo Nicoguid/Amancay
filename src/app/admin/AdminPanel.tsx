@@ -88,7 +88,7 @@ export function AdminPanel() {
                 )}
                 <span className="inline-flex items-center gap-1.5">
                   <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
-                  {STORE.address}, Almagro
+                  {STORE.address}
                 </span>
               </p>
               <h1 className="mt-2.5 font-display text-[30px] leading-tight tracking-[-0.02em] sm:text-[36px]">

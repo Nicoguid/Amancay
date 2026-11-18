@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ShoppingBag, Check, CreditCard, Truck, Store, MessageCircle, Minus, Plus, Bike, Map as MapIcon, MapPin, Sparkles } from 'lucide-react';
+import { ShoppingBag, Check, CreditCard, Truck, Store, MessageCircle, Minus, Plus, Bike, Map as MapIcon, MapPin } from 'lucide-react';
 import type { Product } from '@/lib/types';
 import { useStore, availableStock } from '@/context/StoreContext';
 import { ProductCard, fragranceNotes } from '@/components/ProductCard';
@@ -132,6 +132,62 @@ function ProductView({ product, products }: { product: Product; products: Produc
     `Hola Amancay, quiero consultar por ${waText(product.name)}${variant ? ` (${waText(variant.name)})` : ''}, ${formatPrice(price)}.`
   );
 
+
+  /*
+   * Lo que va al lado de la foto (pedido de la dueña, 17/11/2026):
+   * fragancias -> pirámide olfativa (sin "Sobre este producto" ni ficha);
+   * mates y bombillas -> ficha del producto.
+   * Se dibuja dos veces (escritorio y celular), por eso los id llevan sufijo.
+   */
+  const isFragrance = ['perfumes', 'desodorantes', 'combos'].includes(product.category);
+  const besidePhoto = (where: 'lg' | 'sm') => {
+    if (isFragrance) {
+      if (notes.length === 0) return null;
+      return (
+        <section aria-labelledby={`notas-title-${where}`} className="card-rest rounded-lg bg-white p-5 sm:p-6">
+          <p className="eyebrow">Cómo huele</p>
+          <h2 id={`notas-title-${where}`} className="mt-1.5 font-display text-2xl leading-tight sm:text-[26px]">
+            Pirámide olfativa
+          </h2>
+          <p className="mt-1.5 text-[15px] text-[var(--ink-muted)]">
+            La salida es lo primero que se siente, el corazón aparece a los minutos y el fondo es lo que queda en la piel.
+          </p>
+          <ol className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {notes.map((note, i) => (
+              <li key={note.label} className={`flex flex-col gap-3 rounded-md p-4 ${i === 1 ? 'bg-[var(--bg-sand)]' : 'bg-[var(--bg-subtle)]'}`}>
+                <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-[var(--ink-gold)]">{note.label}</p>
+                <p className="-mt-1 font-display text-xl leading-snug">{note.value}</p>
+                <p className="mt-auto border-t border-[var(--amancay-border)] pt-3 text-sm text-[var(--ink-muted)]">
+                  {i === 0 ? 'Lo que se siente al aplicarlo.' : i === 1 ? 'El carácter de la fragancia.' : 'Lo que queda al final del día.'}
+                </p>
+              </li>
+            ))}
+          </ol>
+        </section>
+      );
+    }
+    return (
+      <section aria-labelledby={`ficha-title-${where}`} className="card-rest rounded-lg bg-white p-5 sm:p-6">
+        <p className="eyebrow">Ficha del producto</p>
+        <h2 id={`ficha-title-${where}`} className="mb-4 mt-1.5 font-display text-2xl sm:text-[26px]">
+          {product.category === 'mates' || product.category === 'bombillas' ? 'Materiales y medidas' : 'Detalles'}
+        </h2>
+        {specs.length > 0 ? (
+          <dl className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {specs.map(([key, val]) => (
+              <div key={key} className="rounded-btn bg-[var(--bg-subtle)] px-4 py-3">
+                <dt className="text-[13px] font-semibold text-[var(--ink-muted)]">{key}</dt>
+                <dd className="mt-0.5 font-semibold">{val}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : (
+          <p className="text-[var(--ink-muted)]">Para medidas o detalles, escribinos por WhatsApp.</p>
+        )}
+      </section>
+    );
+  };
+
   const faq = [
     {
       q: '¿Puedo verlo antes de comprar?',
@@ -224,16 +280,9 @@ function ProductView({ product, products }: { product: Product; products: Produc
               </ul>
             )}
 
-            <div className="hidden items-start gap-4 rounded-lg bg-[var(--bg-subtle)] p-5 lg:flex">
-              <span className="icon-tile">
-                <Sparkles className="h-5 w-5" aria-hidden="true" />
-              </span>
-              <div>
-                <h2 className="font-display text-xl">Sobre este producto</h2>
-                <p className="mt-1 leading-relaxed text-[var(--ink-muted)]">{product.description}</p>
-              </div>
-            </div>
-          </div>
+            {/* En escritorio, el espacio debajo de la foto lo ocupa la ficha (mates y bombillas) o la pirámide (fragancias). */}
+            <div className="hidden lg:block">{besidePhoto('lg')}</div>
+                    </div>
 
           {/* Datos y compra */}
           <div className="enter rounded-lg bg-white p-5 shadow-[var(--shadow-rest)] sm:p-7 lg:col-span-5" style={{ '--i': 2 } as CSSProperties}>
@@ -244,7 +293,7 @@ function ProductView({ product, products }: { product: Product; products: Produc
             >
               <Store className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <span>
-                {stock > 0 ? `${stockMessage}: retiralo sin costo en ${STORE.address}, Almagro.` : 'Sin stock por ahora. Escribinos y te avisamos cuando vuelva a entrar.'}
+                {stock > 0 ? `${stockMessage}: retiralo sin costo en ${STORE.address}.` : 'Sin stock por ahora. Escribinos y te avisamos cuando vuelva a entrar.'}
               </span>
             </p>
 
@@ -284,7 +333,7 @@ function ProductView({ product, products }: { product: Product; products: Produc
               )}
             </div>
 
-            <p className="mt-5 leading-relaxed text-[var(--ink-muted)] lg:hidden">{product.description}</p>
+            <p className="mt-5 leading-relaxed text-[var(--ink-muted)]">{product.description}</p>
 
             {variants.length > 1 && (
               <fieldset className="mt-6">
@@ -393,7 +442,7 @@ function ProductView({ product, products }: { product: Product; products: Produc
               </h2>
               <ul className="mt-3 space-y-2">
                 {[
-                  { icon: Store, title: 'Retiro en el local', detail: `${STORE.address}, Almagro. Te avisamos por WhatsApp cuando está listo.`, price: 'Sin costo', free: true },
+                  { icon: Store, title: 'Retiro en el local', detail: `${STORE.address}. Te avisamos por WhatsApp cuando está listo.`, price: 'Sin costo', free: true },
                   { icon: Bike, title: 'Moto en CABA', detail: 'Coordinamos día y franja horaria por WhatsApp.', price: formatPrice(SHIPPING_RATES.moto_caba), free: false },
                   { icon: Truck, title: 'Correo Argentino', detail: 'A todo el país, con número de seguimiento.', price: `Desde ${formatPrice(SHIPPING_RATES.correo_gba)}`, free: false },
                 ].map(({ icon: Icon, title, detail, price: cost, free }) => (
@@ -446,99 +495,39 @@ function ProductView({ product, products }: { product: Product; products: Produc
           </div>
         </div>
 
-        {/* Pirámide olfativa: solo con las notas cargadas en la ficha del perfume. */}
-        {notes.length > 0 && (
-          <section aria-labelledby="notas-title" className="mt-14 sm:mt-20">
-            <Reveal className="mx-auto max-w-2xl text-center">
-              <p className="eyebrow">Cómo huele</p>
-              <h2 id="notas-title" className="mt-2 font-display text-[28px] leading-tight tracking-[-0.02em] sm:text-[34px]">
-                Pirámide olfativa
-              </h2>
-              <p className="mt-2 text-[var(--ink-muted)]">
-                La salida es lo primero que se siente, el corazón aparece a los minutos y el fondo es lo que queda en la piel.
-              </p>
-            </Reveal>
-            <ol className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-5">
-              {notes.map((note, i) => {
-                const dark = i === 1;
-                return (
-                  <Reveal
-                    as="li"
-                    key={note.label}
-                    index={i}
-                    rise={16}
-                    className={`flex flex-col gap-5 rounded-lg p-6 sm:p-7 ${dark ? 'bg-[var(--brand-espresso)] text-[#fdf9f0]' : 'card-rest bg-white'}`}
-                  >
-                    <p className={`text-[12px] font-bold uppercase tracking-[0.08em] ${dark ? 'text-[var(--ink-gold-on-dark)]' : 'text-[var(--ink-gold)]'}`}>
-                      {note.label}
-                    </p>
-                    <p className="-mt-2 font-display text-2xl leading-snug">{note.value}</p>
-                    <p className={`mt-auto border-t pt-4 text-sm ${dark ? 'border-white/15 text-[#e6e2d9]' : 'border-[var(--amancay-border)] text-[var(--ink-muted)]'}`}>
-                      {i === 0 ? 'Lo que se siente al aplicarlo.' : i === 1 ? 'El carácter de la fragancia.' : 'Lo que queda al final del día.'}
-                    </p>
-                  </Reveal>
-                );
-              })}
-            </ol>
-          </section>
-        )}
+        {/* En celular, la ficha o la pirámide van después de la compra. */}
+        <div className="mt-8 lg:hidden">{besidePhoto('sm')}</div>
 
-        {/* Ficha y cuidados */}
-        <div className="mt-14 grid grid-cols-1 gap-5 sm:mt-20 lg:grid-cols-2">
-          <Reveal as="section" aria-labelledby="ficha-title" rise={16} className="card-rest rounded-lg bg-white p-6 sm:p-8">
-            <p className="eyebrow">Ficha del producto</p>
-            <h2 id="ficha-title" className="mb-4 mt-2 font-display text-2xl sm:text-[28px]">
-              {product.category === 'mates' || product.category === 'bombillas' ? 'Materiales y medidas' : 'Detalles'}
-            </h2>
-            {specs.length > 0 ? (
-              <dl className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                {specs.map(([key, val]) => (
-                  <div key={key} className="rounded-btn bg-[var(--bg-subtle)] px-4 py-3">
-                    <dt className="text-[13px] font-semibold text-[var(--ink-muted)]">{key}</dt>
-                    <dd className="mt-0.5 font-semibold">{val}</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : (
-              <p className="text-[var(--ink-muted)]">Para medidas o detalles, escribinos por WhatsApp.</p>
-            )}
-          </Reveal>
-
-          {product.curadoOGuia ? (
-            <Reveal as="section" aria-labelledby="guia-title" rise={16} index={1} className="rounded-lg bg-[var(--bg-sunken)] p-6 sm:p-8">
+        {/* Cuidados y preguntas */}
+        <div className={`mt-14 grid grid-cols-1 gap-5 sm:mt-20 ${product.curadoOGuia ? 'lg:grid-cols-2' : ''}`}>
+          {product.curadoOGuia && (
+            <Reveal as="section" aria-labelledby="guia-title" rise={16} className="rounded-lg bg-[var(--bg-sunken)] p-6 sm:p-8">
               <p className="eyebrow">Antes del primer uso</p>
               <h2 id="guia-title" className="mb-4 mt-2 font-display text-2xl sm:text-[28px]">
                 {product.category === 'mates' ? 'Cómo curarlo' : 'Cuidados'}
               </h2>
               <p className="max-w-prose text-[17px] leading-[1.7] text-[var(--ink-secondary)]">{product.curadoOGuia}</p>
             </Reveal>
-          ) : (
-            <Reveal as="section" aria-labelledby="faq-ficha" rise={16} index={1} className="rounded-lg bg-[var(--bg-sunken)] p-6 sm:p-8">
-              <ProductFaq faq={faq} />
-            </Reveal>
           )}
-        </div>
-
-        {product.curadoOGuia && (
-          <Reveal as="section" aria-labelledby="faq-ficha" rise={16} className="mt-5 rounded-lg bg-[var(--bg-subtle)] p-6 sm:p-8">
+          <Reveal as="section" aria-labelledby="faq-ficha" rise={16} index={1} className="rounded-lg bg-[var(--bg-subtle)] p-6 sm:p-8">
             <ProductFaq faq={faq} />
           </Reveal>
-        )}
+        </div>
 
         {/* Cómo llegar */}
-        <Reveal rise={10} className="mt-5 flex flex-col gap-4 rounded-lg bg-[var(--brand-espresso)] p-5 text-[#fdf9f0] sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <Reveal rise={10} className="mt-5 flex flex-col gap-4 rounded-lg bg-[var(--bg-sand)] p-5 text-[var(--ink-primary)] sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div className="flex items-start gap-4">
             <span className="icon-tile h-12 w-12">
               <MapPin className="h-5 w-5" aria-hidden="true" />
             </span>
             <div>
               <h2 className="font-display text-xl">¿Estás cerca de Corrientes y Medrano?</h2>
-              <p className="mt-1 text-[15px] text-[#e6e2d9]">
+              <p className="mt-1 text-[15px] text-[var(--ink-muted)]">
                 Pasá por el local a verlo: {STORE.address}, a metros del subte B (estaciones Medrano y Carlos Gardel).
               </p>
             </div>
           </div>
-          <a href={STORE.mapsUrl} target="_blank" rel="noopener noreferrer" className="focus-on-dark btn btn-gold shrink-0">
+          <a href={STORE.mapsUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary shrink-0">
             <MapIcon className="h-4 w-4" aria-hidden="true" />
             Abrir en Google Maps
             <span className="sr-only"> (se abre en otra pestaña)</span>

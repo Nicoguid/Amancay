@@ -108,7 +108,7 @@ export function CartContent() {
       id: 'pickup',
       icon: Store,
       title: 'Retiro en el local',
-      detail: `${STORE.address}, Almagro. Te avisamos por WhatsApp cuando el pedido está listo.`,
+      detail: `${STORE.address}. Te avisamos por WhatsApp cuando el pedido está listo.`,
       price: 'Sin costo',
     },
     { id: 'moto_caba', icon: Bike, title: 'Moto en CABA', detail: 'Coordinamos día y franja horaria por WhatsApp.', price: formatPrice(SHIPPING_RATES.moto_caba) },

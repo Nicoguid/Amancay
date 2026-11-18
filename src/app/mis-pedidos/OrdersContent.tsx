@@ -207,11 +207,11 @@ export function OrdersContent() {
           )}
         </section>
 
-        <div className="focus-on-dark mt-10 flex flex-col gap-4 rounded-lg bg-[var(--brand-espresso)] p-6 text-[#fdf9f0] sm:flex-row sm:items-center sm:justify-between sm:p-8">
+        <div className="mt-10 flex flex-col gap-4 rounded-lg bg-[var(--bg-sand)] p-6 text-[var(--ink-primary)] sm:flex-row sm:items-center sm:justify-between sm:p-8">
           <div>
-            <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-[var(--ink-gold-on-dark)]">Atención del local</p>
+            <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-[var(--ink-gold)]">Atención del local</p>
             <h2 className="mt-1.5 font-display text-xl sm:text-2xl">¿Tenés alguna duda sobre tu entrega o retiro?</h2>
-            <p className="mt-1 max-w-xl text-[15px] text-[#e6e2d9]">Escribinos con el código del pedido y lo vemos en el momento.</p>
+            <p className="mt-1 max-w-xl text-[15px] text-[var(--ink-muted)]">Escribinos con el código del pedido y lo vemos en el momento.</p>
           </div>
           <a
             href={whatsappUrl('Hola Amancay, tengo una consulta sobre mi pedido.')}
@@ -248,7 +248,7 @@ function OrderCard({ order }: { order: Order }) {
 
   return (
     <article className="card-rest overflow-hidden rounded-lg bg-white">
-      <header className="focus-on-dark flex flex-wrap items-center justify-between gap-x-6 gap-y-3 bg-[var(--brand-espresso)] px-5 py-4 text-[#fdf9f0] sm:px-7">
+      <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-[var(--amancay-border)] bg-[var(--bg-sand)] px-5 py-4 text-[var(--ink-primary)] sm:px-7">
         <div className="flex items-center gap-3">
           <span className="icon-tile">
             {pickup ? <Store className="h-5 w-5" aria-hidden="true" /> : <Truck className="h-5 w-5" aria-hidden="true" />}
@@ -256,19 +256,19 @@ function OrderCard({ order }: { order: Order }) {
           <div>
             <h3 className="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-display text-xl">
               <span className="tabular-nums">Pedido {order.orderNumber}</span>
-              <span className={`tag ${ready ? 'tag-gold' : 'bg-white/15 text-white'}`}>{statusLabel(order)}</span>
+              <span className={`tag ${ready ? 'tag-gold' : 'bg-white text-[var(--ink-primary)]'}`}>{statusLabel(order)}</span>
             </h3>
-            <p className="mt-0.5 text-sm text-[#e6e2d9]">
+            <p className="mt-0.5 text-sm text-[var(--ink-muted)]">
               {dateFormat.format(new Date(order.createdAt))} · {SHIPPING_LABELS[order.shippingMethod]}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-4">
           <p className="text-right">
-            <span className="block text-[12px] font-bold uppercase tracking-[0.06em] text-[#cfc6b6]">Total</span>
+            <span className="block text-[12px] font-bold uppercase tracking-[0.06em] text-[var(--ink-muted)]">Total</span>
             <span className="text-lg font-bold tabular-nums">{formatPrice(order.total)}</span>
           </p>
-          <button type="button" onClick={copyCode} className="btn bg-white/12 px-3 text-sm text-white hover:bg-white/20">
+          <button type="button" onClick={copyCode} className="btn bg-white px-3 text-sm text-[var(--ink-primary)] hover:bg-[var(--brand-gold-soft)]">
             {copied === 'ok' ? <Check className="h-4 w-4" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
             {copied === 'ok' ? 'Copiado' : 'Copiar código'}
           </button>

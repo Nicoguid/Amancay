@@ -17,6 +17,12 @@
   --bg-subtle: #f7f3ea;      /* crema tostada */
   --bg-sunken: #f1eee5;
   --surface-card: #ffffff;
+  /*
+   * Arena (pedido de la dueña, 17/11/2026): las franjas que eran espresso (vidriera, avisos,
+   * llamados) pasan a esta gama clara. El espresso queda solo en botones y texto.
+   */
+  --bg-sand: #f6ead2;
+  --bg-sand-deep: #ecdcbc;
   --chip: #ece8df;
   --chip-strong: #e6e2d9;
 
@@ -710,6 +716,9 @@ body:has(dialog[open]) {
  * Las fotos tienen fondo blanco: el interior es blanco y una capa encima (multiply) lo tiñe todo
  * de crema, fotos incluidas. Así no se ve el recuadro de cada foto ni siquiera mientras entra animada.
  */
+.hero-sand {
+  background: linear-gradient(180deg, #fbf3e3 0%, var(--bg-sand) 100%);
+}
 .vitrina-glass {
   background: #fff;
 }
@@ -828,6 +837,32 @@ body:has(dialog[open]) {
     transform: none !important;
   }
   details.accordion::details-content {
+    transition: none;
+  }
+}
+
+/* Tarjetas reversibles de Perfil (components/FlipCard.tsx). */
+.flip-card {
+  perspective: 1800px;
+}
+.flip-inner {
+  display: grid;
+  transform-style: preserve-3d;
+  transition: transform 650ms var(--ease-out);
+}
+.flip-face {
+  grid-area: 1 / 1;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.flip-back {
+  transform: rotateY(180deg);
+}
+.flip-card[data-flipped='true'] .flip-inner {
+  transform: rotateY(180deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .flip-inner {
     transition: none;
   }
 }
