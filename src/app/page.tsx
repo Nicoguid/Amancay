@@ -1,6 +1,7 @@
 import { Store, Bike, Truck, Clock, MessageCircle, TrainFront, Gift, Map as MapIcon, Images, Plus } from 'lucide-react';
 import type { Metadata } from 'next';
 import { Vitrina } from '@/components/home/Vitrina';
+import { HeroMate } from '@/components/home/HeroMate';
 import { MatesShelf, FragranceShelf } from '@/components/home/HomeShelves';
 import { StoreMapSketch } from '@/components/home/StoreMapSketch';
 import { BrandsTicker } from '@/components/MarqueeTicker';
@@ -72,6 +73,7 @@ export default function HomePage() {
     <div className="flex flex-col bg-[var(--bg-page)] text-[var(--ink-primary)]">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(storeJsonLd()) }} />
 
+      <HeroMate />
       <Vitrina />
 
       {/* Cinta de beneficios */}

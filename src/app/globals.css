@@ -866,3 +866,134 @@ body:has(dialog[open]) {
     transition: none;
   }
 }
+
+/* ---------- Héroe con vidrio (inicio) ---------- */
+
+/*
+ * Fondo claro con luces doradas: el vidrio necesita algo detrás para que se note el desenfoque.
+ * Termina en el mismo crema con el que arranca la vidriera de abajo, así no se ve el corte.
+ */
+.hero-glass {
+  background: linear-gradient(180deg, #fdf8ec 0%, #f8eedb 62%, #fbf3e3 100%);
+}
+.hero-glow {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(60px);
+}
+.hero-glow--gold {
+  right: 4%;
+  top: 8%;
+  width: 46vw;
+  max-width: 620px;
+  aspect-ratio: 1;
+  background: radial-gradient(circle, rgba(254, 206, 87, 0.55) 0%, rgba(254, 206, 87, 0) 68%);
+}
+.hero-glow--brass {
+  left: -8%;
+  bottom: -20%;
+  width: 40vw;
+  max-width: 520px;
+  aspect-ratio: 1;
+  background: radial-gradient(circle, rgba(217, 173, 60, 0.28) 0%, rgba(217, 173, 60, 0) 70%);
+}
+.hero-glow--light {
+  left: 20%;
+  top: -18%;
+  width: 36vw;
+  max-width: 460px;
+  aspect-ratio: 1;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0) 70%);
+}
+
+/* Vidrio esmerilado: blanco translúcido, borde de luz y sombra cálida. */
+.glass {
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 18px 40px -18px rgba(44, 24, 16, 0.28);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+.glass-hover {
+  transition: background-color 180ms var(--ease-out), transform 180ms var(--ease-out);
+}
+.glass-hover:hover {
+  background: rgba(255, 255, 255, 0.72);
+}
+/* Sin desenfoque disponible, el vidrio pasa a ser casi opaco para que el texto se siga leyendo. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass {
+    background: rgba(255, 255, 255, 0.9);
+  }
+}
+
+.hero-highlight {
+  color: var(--ink-gold);
+  font-style: italic;
+}
+
+/* Disco de vidrio detrás del mate. */
+.hero-disc {
+  border-radius: 9999px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.18) 60%, rgba(254, 206, 87, 0.18) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -30px 60px rgba(217, 173, 60, 0.12),
+    0 40px 80px -40px rgba(44, 24, 16, 0.35);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+.hero-floor {
+  border-radius: 9999px;
+  background: radial-gradient(ellipse, rgba(44, 24, 16, 0.35) 0%, rgba(44, 24, 16, 0) 70%);
+  filter: blur(6px);
+  animation: hero-floor 6s ease-in-out infinite;
+}
+.hero-mate {
+  transform: rotate(-7deg);
+  filter: drop-shadow(0 30px 30px rgba(44, 24, 16, 0.28));
+}
+
+/* Movimiento: el mate flota y los paneles de vidrio se mecen, cada uno a su tiempo. */
+@keyframes hero-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+@keyframes hero-floor {
+  0%, 100% { transform: translateX(-50%) scaleX(1); opacity: 1; }
+  50% { transform: translateX(-50%) scaleX(0.9); opacity: 0.75; }
+}
+@keyframes hero-chip-in {
+  from { opacity: 0.01; transform: translateY(16px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes hero-chip-bob {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -6px; }
+}
+.hero-float {
+  animation:
+    rise 700ms var(--ease-out) 120ms both,
+    hero-float 6s ease-in-out 800ms infinite;
+}
+.hero-chip {
+  animation:
+    hero-chip-in 600ms var(--ease-out) calc(450ms + var(--d, 0s) / 6) both,
+    hero-chip-bob 5s ease-in-out var(--d, 0s) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-float,
+  .hero-chip,
+  .hero-floor {
+    animation: none;
+  }
+}
+/* Las luces se apagan antes del borde inferior: así el héroe y la vidriera se funden sin corte. */
+.hero-glows {
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 72%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 72%, transparent 100%);
+}

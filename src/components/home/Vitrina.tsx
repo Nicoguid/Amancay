@@ -7,7 +7,7 @@ import type { Product, ProductCategory } from '@/lib/types';
 import { useStore, priceRange } from '@/context/StoreContext';
 import { ProductImage } from '@/components/ProductImage';
 import { ProductCard } from '@/components/ProductCard';
-import { STORE, formatPrice, productPath } from '@/lib/storeConfig';
+import { formatPrice, productPath } from '@/lib/storeConfig';
 
 /*
  * La vidriera del inicio (hero del Figma "Inicio & Vidriera Interactiva").
@@ -91,27 +91,14 @@ export function Vitrina() {
   const single = visible.length === 1;
 
   return (
-    <section aria-labelledby="hero-title" className="hero-sand text-[var(--ink-primary)]">
-      <div className="mx-auto max-w-[1320px] px-4 pb-8 pt-9 sm:px-8 sm:pb-10 sm:pt-12 lg:px-12">
+    <section aria-labelledby="vitrina-title" className="hero-sand text-[var(--ink-primary)]">
+      <div className="mx-auto max-w-[1320px] px-4 pb-8 pt-4 sm:px-8 sm:pb-10 sm:pt-6 lg:px-12">
         <div className="mx-auto max-w-4xl text-center">
-          <p className="enter eyebrow justify-center" style={{ '--i': 0 } as CSSProperties}>
-            Perfumería · Bazar · Mates
-          </p>
-          <h1
-            id="hero-title"
-            className="enter mt-3 font-display text-[34px] leading-[1.12] tracking-[-0.02em] sm:text-[44px] lg:text-[52px]"
-            style={{ '--i': 0, '--rise': '16px' } as CSSProperties}
-          >
-            Perfumería, bazar y mates de siempre, en un mismo mostrador.
-          </h1>
-          <p
-            className="enter mx-auto mt-4 max-w-2xl text-base leading-relaxed text-[var(--ink-muted)] sm:text-[17px]"
-            style={{ '--i': 1 } as CSSProperties}
-          >
-            Precio y stock a la vista. Comprá online y retirá sin costo en {STORE.address}, a metros del subte B.
-          </p>
+          <h2 id="vitrina-title" className="enter eyebrow justify-center" style={{ '--i': 4 } as CSSProperties}>
+            Las vidrieras del local
+          </h2>
 
-          <div className="enter mt-6 flex justify-center" style={{ '--i': 2, '--rise': '10px' } as CSSProperties}>
+          <div className="enter mt-4 flex justify-center" style={{ '--i': 5, '--rise': '10px' } as CSSProperties}>
             <div role="group" aria-label="Qué vidriera mirar" className="inline-flex justify-center gap-1 rounded-md border border-[var(--bg-sand-deep)] bg-white/70 p-1 backdrop-blur-md">
               {SELECTOR.map((option) => {
                 const active = selection === option.id;
