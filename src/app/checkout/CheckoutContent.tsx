@@ -3,24 +3,57 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ProductImage } from '@/components/ProductImage';
-import { ShoppingBag, ArrowLeft, Check, Copy, MessageCircle, Store, Truck, Bike, Info } from 'lucide-react';
+import { ShoppingBag, ArrowLeft, Copy, MessageCircle, Store, Truck, Bike, Info, Package } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { ProductCard } from '@/components/ProductCard';
 import type { Order, PaymentMethod, ShippingMethod } from '@/lib/types';
-import { SHIPPING_LABELS, SHIPPING_RATES, STORE, formatPrice, shippingCost, whatsappUrl } from '@/lib/storeConfig';
+import { SHIPPING_LABELS, SHIPPING_RATES, STORE, formatPrice, shippingCost, whatsappUrl, waText } from '@/lib/storeConfig';
 import { recordConsent, track } from '@/lib/consent';
 import { looksAutomated } from '@/lib/formGuard';
 import { AAIP_ACCESS_NOTICE, AAIP_AUTHORITY_NOTICE, legalPath } from '@/lib/legal';
+import { DELIVERY_CHOICE_KEY } from '@/lib/cartMessage';
 
 type FieldName = 'fullName' | 'dni' | 'phone' | 'email' | 'address' | 'city' | 'postalCode' | 'notes';
 type FormData = Record<FieldName, string>;
 
 const EMPTY_FORM: FormData = { fullName: '', dni: '', phone: '', email: '', address: '', city: 'CABA', postalCode: '', notes: '' };
 
-const inputClass = (invalid: boolean) =>
-  `w-full rounded-lg border bg-[var(--bg-page)] px-3 py-2.5 focus:border-[var(--ink-accent)] ${
-    invalid ? 'border-[var(--amancay-wine)]' : 'border-[var(--amancay-border)]'
+const SHIPPING_IDS: ShippingMethod[] = ['pickup', 'moto_caba', 'correo_argentino'];
+
+/** La entrega elegida en /carrito durante esta visita, si la hay. */
+function deliveryChosenInCart(): ShippingMethod | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const value = window.sessionStorage.getItem(DELIVERY_CHOICE_KEY) as ShippingMethod | null;
+    return value && SHIPPING_IDS.includes(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+const cardClass = 'card-rest space-y-4 rounded-lg bg-white p-5 sm:p-7';
+const optionClass = (selected: boolean) =>
+  `flex items-start gap-3 rounded-btn border p-4 transition-[border-color,background-color,box-shadow] duration-150 ${
+    selected
+      ? 'border-[var(--ink-gold)] bg-[var(--brand-leather-wash)] shadow-[0_0_0_1px_var(--ink-gold)]'
+      : 'border-[var(--amancay-border)] hover:border-[var(--brand-brass)]'
   }`;
+
+function StepLegend({ step, children }: { step?: number; children: React.ReactNode }) {
+  return (
+    <legend className="float-left mb-3 flex w-full items-center gap-3 font-display text-2xl">
+      {step !== undefined && (
+        <>
+          <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded-md bg-[var(--brand-gold)] font-sans text-sm font-bold text-[var(--ink-on-gold)]">
+            {step}
+          </span>
+          <span className="sr-only">{step}. </span>
+        </>
+      )}
+      {children}
+    </legend>
+  );
+}
 
 function validate(data: FormData, shipping: ShippingMethod): Partial<Record<FieldName, string>> {
   const errors: Partial<Record<FieldName, string>> = {};
@@ -39,8 +72,10 @@ function validate(data: FormData, shipping: ShippingMethod): Partial<Record<Fiel
 }
 
 export function CheckoutContent() {
-  const { cart, cartTotal, createOrder, products, isHydrated } = useStore();
-  const [shippingMethod, setShippingMethod] = useState<ShippingMethod>('pickup');
+  const { cart, cartTotal, createOrder, products, isHydrated, profile, saveProfile } = useStore();
+  const [shippingMethod, setShippingMethod] = useState<ShippingMethod>(() => deliveryChosenInCart() ?? 'pickup');
+  // Opcional y sin marcar: guardar estos datos en el navegador para la próxima compra.
+  const [rememberMe, setRememberMe] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transferencia');
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
   const [errors, setErrors] = useState<Partial<Record<FieldName, string>>>({});
@@ -64,6 +99,25 @@ export function CheckoutContent() {
   }, [isHydrated, cart.length, cartTotal]);
   const formRef = useRef<HTMLFormElement>(null);
 
+  // Si la persona guardó su perfil, el formulario arranca completo (una sola vez, al leer el navegador).
+  const [prefilled, setPrefilled] = useState(false);
+  if (isHydrated && !prefilled) {
+    setPrefilled(true);
+    if (profile) {
+      setForm((f) => ({
+        ...f,
+        fullName: profile.fullName,
+        phone: profile.phone,
+        email: profile.email,
+        address: profile.address,
+        city: profile.city || f.city,
+        postalCode: profile.postalCode,
+      }));
+      setRememberMe(true);
+      if (!deliveryChosenInCart()) setShippingMethod(profile.shippingMethod);
+    }
+  }
+
   if (!isHydrated) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -81,12 +135,12 @@ export function CheckoutContent() {
       <div className="min-h-screen bg-[var(--bg-page)] px-4 py-12 text-[var(--ink-primary)] sm:px-6 sm:py-16 lg:px-8">
         <div className="mx-auto max-w-6xl">
           <div className="mb-12 text-center">
-            <ShoppingBag className="mx-auto mb-4 h-10 w-10 text-[var(--ink-accent)]" aria-hidden="true" />
+            <span className="icon-tile mx-auto mb-5 h-16 w-16"><ShoppingBag className="h-7 w-7" aria-hidden="true" /></span>
             <h1 className="mb-3 font-display text-4xl tracking-tight">Tu carrito está vacío</h1>
             <p className="mb-8 text-[var(--ink-muted)]">Sumá productos desde el catálogo para finalizar la compra.</p>
             <Link
               href="/catalogo"
-              className="tap-interactive inline-flex min-h-12 items-center rounded-full bg-[var(--brand-leather)] px-8 font-semibold text-white hover:bg-[var(--brand-leather-hover)]"
+              className="btn btn-lg btn-primary"
             >
               Ir al catálogo
             </Link>
@@ -186,6 +240,23 @@ export function CheckoutContent() {
       setSubmitError(result.error);
       return;
     }
+    if (rememberMe) {
+      saveProfile({
+        fullName: form.fullName.trim(),
+        phone: form.phone.trim(),
+        email: form.email.trim(),
+        shippingMethod,
+        // Si esta vez retira en el local, no se pisa la dirección que ya tenía guardada.
+        address: shippingMethod === 'pickup' ? (profile?.address ?? '') : form.address.trim(),
+        city: shippingMethod === 'pickup' ? (profile?.city ?? '') : form.city.trim(),
+        postalCode: shippingMethod === 'pickup' ? (profile?.postalCode ?? '') : form.postalCode.trim(),
+      });
+    }
+    try {
+      window.sessionStorage.removeItem(DELIVERY_CHOICE_KEY);
+    } catch {
+      // Sin sessionStorage no hay nada que limpiar.
+    }
     setOrder(result.order);
     track('purchase', { transaction_id: result.order.orderNumber, value: result.order.total, currency: 'ARS', items: result.order.items.length });
     window.scrollTo({ top: 0 });
@@ -211,7 +282,7 @@ export function CheckoutContent() {
           onChange={(e) => setField(name, e.target.value)}
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy}
-          className={inputClass(!!error)}
+          className="field"
           {...props}
         />
         {error && (
@@ -249,11 +320,12 @@ export function CheckoutContent() {
   return (
     <div className="min-h-screen bg-[var(--bg-page)] py-8 text-[var(--ink-primary)] sm:py-12">
       <div className="mx-auto max-w-[1200px] px-5 sm:px-8 lg:px-12">
-        <Link href="/catalogo" className="mb-4 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-[var(--ink-accent)] hover:underline">
+        <Link href="/carrito" className="mb-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-[var(--ink-secondary)] hover:text-[var(--ink-primary)] hover:underline">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Seguir comprando
+          Volver al carrito
         </Link>
-        <h1 className="mb-2 font-display text-[40px] leading-tight">Finalizar compra</h1>
+        <p className="eyebrow">Último paso</p>
+        <h1 className="mb-2 mt-1.5 font-display text-[32px] leading-tight tracking-[-0.02em] sm:text-[40px]">Finalizar compra</h1>
         <p className="mb-8 flex items-center gap-2 text-sm text-[var(--ink-muted)]">
           <Info className="h-4 w-4 shrink-0" aria-hidden="true" />
           Versión de demostración: no se cobra nada y el pedido queda guardado solo en este navegador.
@@ -261,23 +333,19 @@ export function CheckoutContent() {
 
         <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
           <section aria-labelledby="resumen-title" className="lg:sticky lg:top-40 lg:order-last lg:col-span-5">
-            <div className="space-y-4 card-rest rounded-lg border border-[var(--amancay-border)] bg-white p-6 sm:p-8">
+            <div className="space-y-4 rounded-lg bg-white p-5 shadow-[var(--shadow-lift)] sm:p-7">
               <h2 id="resumen-title" className="font-display text-2xl">
                 Tu pedido
               </h2>
               <ul className="divide-y divide-[var(--bg-subtle)]">
                 {cart.map((item) => (
                   <li key={item.id} className="flex items-center justify-between gap-3 py-3">
-                    <ProductImage
-                      src={item.product.images[0]}
-                      alt=""
-                      width={64}
-                      height={64}
-                      className="photo-on-linen h-16 w-16 shrink-0 rounded bg-[var(--bg-subtle)] object-contain p-1.5"
-                    />
+                    <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md bg-[var(--bg-sunken)]">
+                      <ProductImage src={item.product.images[0]} alt="" width={64} height={64} className="photo-on-linen h-full w-full object-contain p-1.5" />
+                    </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold">{item.product.name}</p>
-                      {item.selectedVariant && <p className="text-sm text-[var(--ink-accent)]">{item.selectedVariant.name}</p>}
+                      {item.selectedVariant && <p className="text-sm font-semibold text-[var(--ink-gold)]">{item.selectedVariant.name}</p>}
                       <p className="text-sm text-[var(--ink-muted)]">Cantidad: {item.quantity}</p>
                     </div>
                     <span className="shrink-0 font-semibold tabular-nums">{formatPrice(item.unitPrice * item.quantity)}</span>
@@ -295,31 +363,48 @@ export function CheckoutContent() {
                 </div>
                 <div className="flex items-baseline justify-between border-t border-[var(--amancay-border)] pt-3 font-semibold">
                   <dt>Total</dt>
-                  <dd className="font-display text-3xl tabular-nums">{formatPrice(finalTotal)}</dd>
+                  <dd key={finalTotal} className="swap-in font-display text-[34px] leading-none tabular-nums tracking-[-0.02em]">{formatPrice(finalTotal)}</dd>
                 </div>
               </dl>
             </div>
           </section>
 
           <form ref={formRef} noValidate onSubmit={handleSubmit} className="space-y-6 lg:col-span-7">
-            <fieldset className="space-y-4 card-rest rounded-lg border border-[var(--amancay-border)] bg-white p-6 sm:p-8">
-              <legend className="float-left mb-3 flex w-full items-center gap-3 font-display text-2xl"><span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--brand-leather)] font-sans text-sm font-semibold text-white">1</span><span className="sr-only">1. </span>Tus datos</legend>
+            <fieldset className={cardClass}>
+              <StepLegend step={1}>Tus datos</StepLegend>
               <div className="clear-both grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {field('fullName', 'Nombre y apellido', { type: 'text', autoComplete: 'name', placeholder: 'Ej.: Juana Pérez' })}
                 {field('phone', 'Teléfono / WhatsApp', { type: 'tel', autoComplete: 'tel', placeholder: 'Ej.: 11 2345 6789' })}
                 {field('email', 'Email', { type: 'email', autoComplete: 'email', spellCheck: false, placeholder: 'nombre@mail.com' })}
               </div>
+              <label className="flex min-h-11 cursor-pointer items-start gap-3 pt-1 text-[15px]">
+                <input
+                  type="checkbox"
+                  name="rememberMe"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand-espresso)]"
+                />
+                <span>
+                  Guardar mis datos en este navegador para la próxima compra.{' '}
+                  <span className="text-[var(--ink-muted)]">
+                    No se crea una cuenta: los ves y los borrás cuando quieras desde{' '}
+                    <Link href="/perfil" className="link-brass">
+                      Mi perfil
+                    </Link>
+                    .
+                  </span>
+                </span>
+              </label>
             </fieldset>
 
-            <fieldset className="space-y-3 card-rest rounded-lg border border-[var(--amancay-border)] bg-white p-6 sm:p-8">
-              <legend className="float-left mb-3 flex w-full items-center gap-3 font-display text-2xl"><span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--brand-leather)] font-sans text-sm font-semibold text-white">2</span><span className="sr-only">2. </span>Entrega</legend>
+            <fieldset className={cardClass}>
+              <StepLegend step={2}>Entrega</StepLegend>
               <div className="clear-both space-y-2.5">
                 {shippingOptions.map(({ id, icon: Icon, title, detail, price }) => (
                   <label
                     key={id}
-                    className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors ${
-                      shippingMethod === id ? 'border-[var(--brand-leather)] bg-[var(--brand-leather-wash)] ring-1 ring-[var(--brand-leather)]' : 'border-[var(--amancay-border)] hover:border-[var(--brand-brass)]'
-                    }`}
+                    className={`cursor-pointer ${optionClass(shippingMethod === id)}`}
                   >
                     <input
                       type="radio"
@@ -327,15 +412,15 @@ export function CheckoutContent() {
                       value={id}
                       checked={shippingMethod === id}
                       onChange={() => chooseShipping(id)}
-                      className="mt-1 h-5 w-5 accent-[var(--brand-leather)]"
+                      className="mt-1 h-5 w-5 accent-[var(--brand-espresso)]"
                     />
                     <span className="flex-1">
-                      <span className="flex items-baseline justify-between gap-3 font-semibold">
-                        <span className="flex items-center gap-1.5">
-                          <Icon className="h-4 w-4 text-[var(--ink-accent)]" aria-hidden="true" />
+                      <span className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 font-semibold">
+                        <span className="flex items-center gap-2">
+                          <Icon className="h-4 w-4 text-[var(--ink-gold)]" aria-hidden="true" />
                           {title}
                         </span>
-                        <span className="tabular-nums text-[var(--brand-olive)]">{price}</span>
+                        <span className={id === 'pickup' ? 'tag tag-gold' : 'tabular-nums'}>{price}</span>
                       </span>
                       <span className="mt-0.5 block text-sm text-[var(--ink-muted)]">{detail}</span>
                     </span>
@@ -370,20 +455,18 @@ export function CheckoutContent() {
                   value={form.notes}
                   onChange={(e) => setField('notes', e.target.value)}
                   placeholder="Ej.: es para regalo, timbre 3B…"
-                  className={inputClass(false)}
+                  className="field"
                 />
               </div>
             </fieldset>
 
-            <fieldset className="space-y-3 card-rest rounded-lg border border-[var(--amancay-border)] bg-white p-6 sm:p-8">
-              <legend className="float-left mb-3 flex w-full items-center gap-3 font-display text-2xl"><span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--brand-leather)] font-sans text-sm font-semibold text-white">3</span><span className="sr-only">3. </span>Pago</legend>
+            <fieldset className={cardClass}>
+              <StepLegend step={3}>Pago</StepLegend>
               <div className="clear-both space-y-2.5">
                 {paymentOptions.map(({ id, title, detail, disabled }) => (
                   <label
                     key={id}
-                    className={`flex items-start gap-3 rounded-lg border p-4 transition-colors ${
-                      disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-[var(--bg-page)]'
-                    } ${paymentMethod === id ? 'border-[var(--brand-leather)] bg-[var(--brand-leather-wash)] ring-1 ring-[var(--brand-leather)]' : 'border-[var(--amancay-border)] hover:border-[var(--brand-brass)]'}`}
+                    className={`${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${optionClass(paymentMethod === id)}`}
                   >
                     <input
                       type="radio"
@@ -392,7 +475,7 @@ export function CheckoutContent() {
                       checked={paymentMethod === id}
                       disabled={disabled}
                       onChange={() => setPaymentMethod(id)}
-                      className="mt-1 h-5 w-5 accent-[var(--brand-leather)]"
+                      className="mt-1 h-5 w-5 accent-[var(--brand-espresso)]"
                     />
                     <span>
                       <span className="block font-semibold">{title}</span>
@@ -403,8 +486,8 @@ export function CheckoutContent() {
               </div>
             </fieldset>
 
-            <fieldset className="space-y-3 card-rest rounded-lg border border-[var(--amancay-border)] bg-white p-6 sm:p-8">
-              <legend className="float-left mb-3 font-display text-2xl">Antes de confirmar</legend>
+            <fieldset className={cardClass}>
+              <StepLegend>Antes de confirmar</StepLegend>
               <div className="clear-both space-y-3">
                 {(
                   [
@@ -425,7 +508,7 @@ export function CheckoutContent() {
                         }}
                         aria-invalid={!!consentErrors[key]}
                         aria-describedby={consentErrors[key] ? `co-${name}-error` : undefined}
-                        className="mt-0.5 h-5 w-5 shrink-0"
+                        className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--brand-espresso)]"
                       />
                       <label htmlFor={`co-${name}`} className="leading-snug">
                         {prefix}{' '}
@@ -456,19 +539,19 @@ export function CheckoutContent() {
             </fieldset>
 
             {Object.values(errors).some(Boolean) && (
-              <p role="alert" className="rounded-lg border border-[var(--amancay-wine)] bg-white p-3 text-[var(--amancay-wine)]">
+              <p role="alert" className="pop-in rounded-btn border border-[var(--amancay-wine)] bg-white p-3 font-semibold text-[var(--amancay-wine)]">
                 Revisá los campos marcados.
               </p>
             )}
             {submitError && (
-              <p role="alert" className="rounded-lg border border-[var(--amancay-wine)] bg-white p-3 text-[var(--amancay-wine)]">
+              <p role="alert" className="pop-in rounded-btn border border-[var(--amancay-wine)] bg-white p-3 font-semibold text-[var(--amancay-wine)]">
                 {submitError}
               </p>
             )}
 
             <button
               type="submit"
-              className="tap-interactive min-h-14 w-full rounded-full bg-[var(--brand-leather)] text-[17px] font-semibold text-white shadow-[var(--shadow-lift)] hover:bg-[var(--brand-leather-hover)]"
+              className="btn btn-primary min-h-14 w-full text-[17px] shadow-[var(--shadow-lift)]"
             >
               Confirmar pedido · {formatPrice(finalTotal)}
             </button>
@@ -493,17 +576,21 @@ function OrderConfirmation({ order }: { order: Order }) {
 
   return (
     <div className="min-h-screen bg-[var(--bg-page)] px-4 py-12 text-[var(--ink-primary)] sm:px-6 sm:py-16 lg:px-8">
-      <div className="mx-auto max-w-2xl space-y-6 card-rest rounded-lg border border-[var(--amancay-border)] bg-white p-6 sm:p-8 shadow-lg sm:p-10">
+      <div className="enter mx-auto max-w-2xl space-y-6 rounded-lg bg-white p-6 shadow-[var(--shadow-lift)] sm:p-10">
         <div className="space-y-2 border-b border-[var(--amancay-border)] pb-6 text-center">
-          <Check className="mx-auto h-10 w-10 text-[var(--brand-olive)]" aria-hidden="true" />
-          <h1 className="font-display text-3xl">Gracias, {order.customer.fullName.split(' ')[0]}</h1>
+          <span className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--brand-olive-wash)] text-[var(--brand-olive)]">
+            <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path className="draw-check" d="M5 12.5l4.5 4.5L19 7.5" />
+            </svg>
+          </span>
+          <h1 className="font-display text-[32px] tracking-[-0.02em]">Gracias, {order.customer.fullName.split(' ')[0]}</h1>
           <p className="text-[var(--ink-muted)]">
             Registramos tu pedido <strong className="text-[var(--ink-primary)]">#{order.orderNumber}</strong> por{' '}
             <strong className="text-[var(--ink-primary)]">{formatPrice(order.total)}</strong>.
           </p>
         </div>
 
-        <div className="rounded-xl border border-[var(--amancay-border)] bg-[var(--bg-page)] p-4">
+        <div className="rounded-btn bg-[var(--bg-subtle)] p-4">
           {order.shippingMethod === 'pickup' ? (
             <>
               <p className="font-semibold">Retiro en {STORE.address}</p>
@@ -523,10 +610,10 @@ function OrderConfirmation({ order }: { order: Order }) {
         </div>
 
         {order.paymentMethod === 'transferencia' && (
-          <div className="space-y-3 rounded-lg border border-[var(--brand-brass)] bg-[var(--bg-subtle)] p-5">
-            <p className="font-display text-xl text-[var(--brand-leather)]">Datos para transferir</p>
+          <div className="space-y-3 rounded-btn border border-[var(--brand-brass)] bg-[var(--brand-leather-wash)] p-5">
+            <p className="font-display text-xl">Datos para transferir</p>
             {STORE.transfer.isPlaceholder && (
-              <p className="rounded-md bg-white/10 p-2 text-sm">Datos de ejemplo de la demo. No transfieras a esta cuenta.</p>
+              <p className="rounded-btn bg-white p-2.5 text-sm font-semibold text-[var(--amancay-wine)]">Datos de ejemplo de la demo. No transfieras a esta cuenta.</p>
             )}
             <dl className="space-y-1.5 text-sm">
               {[
@@ -540,15 +627,15 @@ function OrderConfirmation({ order }: { order: Order }) {
                   <dd className="break-all text-right font-mono">{v}</dd>
                 </div>
               ))}
-              <div className="flex justify-between border-t border-white/20 pt-2 text-base font-semibold">
+              <div className="flex justify-between border-t border-[var(--brand-brass)] pt-2 text-base font-semibold">
                 <dt>Monto</dt>
-                <dd className="font-semibold tabular-nums text-[var(--brand-leather)]">{formatPrice(order.total)}</dd>
+                <dd className="font-bold tabular-nums">{formatPrice(order.total)}</dd>
               </div>
             </dl>
             <button
               type="button"
               onClick={copyAlias}
-              className="tap-interactive flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-white/25 bg-white/10 font-semibold hover:bg-white/20"
+              className="btn btn-primary w-full"
             >
               <Copy className="h-4 w-4" aria-hidden="true" />
               Copiar alias
@@ -560,34 +647,39 @@ function OrderConfirmation({ order }: { order: Order }) {
         )}
 
         {order.paymentMethod === 'mercadopago' && (
-          <p className="rounded-xl border border-[var(--amancay-border)] bg-[var(--bg-page)] p-4 text-[var(--ink-muted)]">
+          <p className="rounded-btn bg-[var(--bg-subtle)] p-4 text-[var(--ink-muted)]">
             En la tienda final, acá se abre el pago de Mercado Pago. En esta demo no se cobra nada.
           </p>
         )}
 
         {order.paymentMethod === 'mostrador' && (
-          <p className="rounded-xl border border-[var(--amancay-border)] bg-[var(--bg-page)] p-4 text-[var(--ink-muted)]">
+          <p className="rounded-btn bg-[var(--bg-subtle)] p-4 text-[var(--ink-muted)]">
             Pagás en efectivo o con tarjeta cuando retirás.
           </p>
         )}
 
         <div className="flex flex-col gap-3 sm:flex-row">
           <a
-            href={whatsappUrl(`Hola Amancay, hice el pedido #${order.orderNumber} a nombre de ${order.customer.fullName} por ${formatPrice(order.total)}.`)}
+            href={whatsappUrl(`Hola Amancay, hice el pedido #${order.orderNumber} a nombre de ${waText(order.customer.fullName)} por ${formatPrice(order.total)}.`)}
             target="_blank"
             rel="noopener noreferrer"
-            className="tap-interactive flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-[var(--whatsapp-action)] px-4 font-semibold text-white hover:bg-[var(--whatsapp-action-hover)]"
+            className="btn btn-lg btn-whatsapp-solid flex-1"
           >
             <MessageCircle className="h-4 w-4" aria-hidden="true" />
             Avisar por WhatsApp
           </a>
-          <Link
-            href="/"
-            className="tap-interactive flex min-h-12 items-center justify-center rounded-full bg-[var(--brand-leather)] px-6 font-semibold text-white hover:bg-[var(--brand-leather-hover)]"
-          >
-            Volver a la tienda
+          <Link href="/mis-pedidos" className="btn btn-lg btn-primary flex-1">
+            <Package className="h-4 w-4" aria-hidden="true" />
+            Seguir mi pedido
           </Link>
         </div>
+        <p className="text-center text-sm text-[var(--ink-muted)]">
+          Guardá el código <strong className="text-[var(--ink-primary)]">{order.orderNumber}</strong>: con él encontrás el pedido en “Mis pedidos” desde este
+          navegador.{' '}
+          <Link href="/" className="link-brass">
+            Volver a la tienda
+          </Link>
+        </p>
       </div>
     </div>
   );

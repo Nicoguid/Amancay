@@ -12,13 +12,13 @@ export default function NotFound() {
       <div className="flex flex-wrap justify-center gap-3">
         <Link
           href="/catalogo"
-          className="tap-interactive inline-flex min-h-12 items-center rounded-full bg-[var(--brand-leather)] px-8 font-semibold text-white hover:bg-[var(--brand-leather-hover)]"
+          className="tap-interactive inline-flex min-h-12 items-center rounded-btn bg-[var(--brand-leather)] px-8 font-semibold text-white hover:bg-[var(--brand-leather-hover)]"
         >
           Ver el catálogo
         </Link>
         <Link
           href="/"
-          className="tap-interactive inline-flex min-h-12 items-center rounded-full border-[1.5px] border-[var(--brand-leather)] px-7 font-semibold text-[var(--brand-leather)] hover:bg-[var(--brand-leather-wash)]"
+          className="tap-interactive inline-flex min-h-12 items-center rounded-btn border-[1.5px] border-[var(--brand-leather)] px-7 font-semibold text-[var(--brand-leather)] hover:bg-[var(--brand-leather-wash)]"
         >
           Ir al inicio
         </Link>

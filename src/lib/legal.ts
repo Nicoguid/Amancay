@@ -115,7 +115,7 @@ export const LEGAL_DOCS: Record<LegalSlug, LegalDoc> = {
     slug: 'privacidad',
     title: 'Política de privacidad',
     description: 'Qué datos personales pide Perfumería Amancay, para qué los usa, con quién los comparte y cómo ejercer tus derechos (Ley 25.326).',
-    version: '2026-11-07',
+    version: '2026-11-16',
     sections: [
       {
         heading: 'Responsable',
@@ -130,6 +130,7 @@ export const LEGAL_DOCS: Record<LegalSlug, LegalDoc> = {
           'Dirección, localidad y código postal: solo si elegís envío.',
           'DNI: solo si elegís Correo Argentino, porque el correo lo pide para entregar o retirar en sucursal.',
           'Notas del pedido: solo si las escribís.',
+          'Perfil (opcional): si tildás “Guardar mis datos” en el checkout o completás “Mi perfil”, tu nombre, teléfono, email, entrega habitual y dirección quedan guardados en tu navegador para no volver a escribirlos. No se crea una cuenta, no se guarda el DNI ni datos de pago, y los borrás cuando quieras desde “Mi perfil”.',
         ],
         paragraphs: [
           'No pedimos datos que no usemos para el pedido. No usamos tus datos para publicidad ni los vendemos.',
@@ -181,7 +182,7 @@ export const LEGAL_DOCS: Record<LegalSlug, LegalDoc> = {
     slug: 'cookies',
     title: 'Política de cookies',
     description: 'Qué guarda la tienda de Amancay en tu navegador, qué es necesario para que funcione y qué podés rechazar.',
-    version: '2026-11-07',
+    version: '2026-11-16',
     sections: [
       {
         heading: 'Qué guardamos en tu navegador',
@@ -191,6 +192,7 @@ export const LEGAL_DOCS: Record<LegalSlug, LegalDoc> = {
         list: [
           'Necesario: el carrito, los pedidos de la demo y el catálogo. Sin esto el carrito no funciona. No se puede desactivar desde el sitio, pero lo borrás cuando limpiás los datos del navegador.',
           'Necesario: tu elección sobre la medición y el registro de cuándo aceptaste los términos y la política de privacidad.',
+          'Solo si lo usás: los productos que marcás como guardados, los datos de “Mi perfil” (si elegís guardarlos), la lista de tus pedidos hechos desde este navegador y, durante la visita, la forma de entrega que elegiste en el carrito. Los borrás desde “Guardados” y “Mi perfil”, o limpiando los datos del navegador.',
           'Medición (solo si aceptás): estadísticas anónimas de visitas y compras para saber qué funciona en la tienda. Si la rechazás, no se carga ninguna herramienta de medición.',
         ],
       },

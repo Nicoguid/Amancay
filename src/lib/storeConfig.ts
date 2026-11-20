@@ -139,14 +139,45 @@ export function safeImageUrl(raw: string): string | null {
   if (value.startsWith('/') && !value.startsWith('//')) return value;
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' ? url.href : null;
+    if (url.protocol !== 'https:' || isPrivateHost(url.hostname)) return null;
+    return url.href;
   } catch {
     return null;
   }
 }
 
+/**
+ * Hosts de red local o interna. Hoy las fotos las pide el navegador, pero si mañana un servidor
+ * las descarga (miniaturas, backend), una URL así le haría pedir algo de su propia red (SSRF).
+ */
+function isPrivateHost(hostname: string): boolean {
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal')) return true;
+  if (h === '::1' || h.startsWith('fc') || h.startsWith('fd') || h.startsWith('fe80')) return true;
+  const ip = h.match(/^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/);
+  if (!ip) return false;
+  const [a, b] = [Number(ip[1]), Number(ip[2])];
+  return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+}
+
+/**
+ * Texto escrito por una persona (nombre, código, nombre de producto cargado en el panel) antes de
+ * meterlo en un mensaje de WhatsApp: sin caracteres de control ni símbolos de formato (*negrita*,
+ * _cursiva_, ~tachado~, `código`) que cambien cómo se ve el mensaje en el teléfono del local.
+ */
+export function waText(value: string): string {
+  return value
+    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+    .replace(/[*_~`]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+    .slice(0, 160);
+}
+
 export function whatsappUrl(text: string): string {
-  return `https://wa.me/${STORE.whatsappNumber}?text=${encodeURIComponent(text)}`;
+  // Se conservan los saltos de línea del mensaje armado; cualquier otro carácter de control se quita.
+  const clean = text.replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, ' ');
+  return `https://wa.me/${STORE.whatsappNumber}?text=${encodeURIComponent(clean)}`;
 }
 
 const numberFormat = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
@@ -168,4 +199,39 @@ export function productPath(product: { slug?: string; id: string }): string {
 
 export function slugify(value: string): string {
   return normalizeText(value).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+// ---------- Horario de hoy ----------
+
+const BA_TIME = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Argentina/Buenos_Aires',
+  weekday: 'long',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+export interface TodayHours {
+  /** "9:00 a 13:00 y 15:30 a 19:00" o "Cerrado". */
+  time: string;
+  isOpen: boolean;
+}
+
+/**
+ * Horario del día de hoy según el reloj de Buenos Aires (no el del dispositivo:
+ * alguien puede mirar la tienda desde otro huso horario).
+ */
+export function todayHours(now: Date = new Date()): TodayHours {
+  const parts = BA_TIME.formatToParts(now);
+  const weekday = parts.find((p) => p.type === 'weekday')?.value ?? '';
+  const minutes =
+    Number(parts.find((p) => p.type === 'hour')?.value ?? 0) * 60 + Number(parts.find((p) => p.type === 'minute')?.value ?? 0);
+  const today = STORE.hours.find((h) => (h.dayCodes as readonly string[]).includes(weekday));
+  if (!today || today.shifts.length === 0) return { time: 'Cerrado', isOpen: false };
+  const toMinutes = (hhmm: string) => {
+    const [h, m] = hhmm.split(':').map(Number);
+    return h * 60 + m;
+  };
+  const isOpen = today.shifts.some(([opens, closes]) => minutes >= toMinutes(opens) && minutes < toMinutes(closes));
+  return { time: today.time, isOpen };
 }
