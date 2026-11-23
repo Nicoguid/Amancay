@@ -2,14 +2,15 @@
 
 import { useId, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Download, Upload, Plus, Undo2, LogOut } from 'lucide-react';
+import { Download, Upload, Plus, Undo2, LogOut, MapPin, Store, ClipboardList, Boxes, TriangleAlert } from 'lucide-react';
 import { logout } from './actions';
 import { MetricsTab } from './MetricsTab';
 import { useStore, applyPercentage, matchesMassFilter, type MassFilter, type CsvProductRow } from '@/context/StoreContext';
 import { Dialog } from '@/components/Dialog';
 import type { OrderStatus, Product, ProductCategory } from '@/lib/types';
-import { PAYMENT_LABELS, SHIPPING_LABELS, formatPrice, normalizeText, safeImageUrl, slugify } from '@/lib/storeConfig';
-import { headerIndex, parseArNumber, parseCsv, toCsv } from '@/lib/csv';
+import { PAYMENT_LABELS, SHIPPING_LABELS, STORE, formatPrice, normalizeText, safeImageUrl, slugify } from '@/lib/storeConfig';
+import { useTodayHours } from '@/lib/useStoreHours';
+import { MAX_PRICE, headerIndex, parseArNumber, parseArsPrice, parseCsv, toCsv } from '@/lib/csv';
 import { CATEGORIES as RUBROS } from '@/lib/categories';
 
 type Tab = 'prices' | 'products' | 'orders' | 'metrics';
@@ -35,14 +36,15 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
 /** Umbral de "stock bajo" por línea (variante o producto simple). */
 const LOW_STOCK = 5;
 
-const dateFormat = new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'short' });
+// Hora de Buenos Aires aunque el dispositivo esté configurado en otro huso.
+const dateFormat = new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Argentina/Buenos_Aires' });
 
-const card = 'rounded-xl border border-[var(--amancay-border)] bg-white p-5 sm:p-6';
-const field = 'w-full rounded-md border border-[var(--amancay-border)] bg-white px-3 py-2.5 text-sm focus:border-[var(--ink-accent)]';
-const primaryBtn =
-  'tap-interactive inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[var(--ink-primary)] px-5 text-sm font-semibold text-white hover:bg-[var(--ink-secondary)] disabled:opacity-50';
-const secondaryBtn =
-  'tap-interactive inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-[var(--amancay-border)] bg-white px-5 text-sm font-semibold text-[var(--ink-primary)] hover:bg-[var(--bg-subtle)]';
+const card = 'card-rest rounded-lg bg-white p-5 sm:p-6';
+const field = 'field text-sm';
+const primaryBtn = 'btn btn-primary text-sm';
+const secondaryBtn = 'btn btn-quiet text-sm';
+
+const todayFormat = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Argentina/Buenos_Aires' });
 
 function lowStockLines(products: Product[]) {
   const lines: { key: string; sku: string; name: string; stock: number }[] = [];
@@ -63,30 +65,105 @@ export function AdminPanel() {
   const { products, orders, isHydrated } = useStore();
   const [activeTab, setActiveTab] = useState<Tab>('prices');
   const pendingOrders = orders.filter((o) => o.status === 'pendiente' || o.status === 'en_preparacion').length;
+  const readyOrders = orders.filter((o) => o.status === 'listo_para_retirar').length;
+  const activeProducts = products.filter((p) => p.active);
+  const activeCount = activeProducts.length;
+  const materoCount = activeProducts.filter((p) => p.category === 'mates' || p.category === 'bombillas').length;
+  const lowStock = lowStockLines(products).length;
+  const today = useTodayHours();
 
   return (
     <div className="min-h-screen bg-[var(--bg-page)] pb-16 text-[var(--ink-primary)]">
-      <div className="focus-on-dark border-b border-[var(--ink-secondary)] bg-[var(--ink-primary)] py-6 text-white">
-        <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-4 px-4 sm:flex-row sm:items-center sm:px-6 lg:px-8">
-          <div>
-            <h1 className="font-display text-3xl tracking-tight">Panel del local</h1>
-            <p className="mt-1 text-sm text-white/80">Precios, stock y pedidos. Demo: los cambios se guardan solo en este navegador.</p>
+      {/* Cabecera del panel (Figma: "Panel de Control Interno"), con datos reales del navegador. */}
+      <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 sm:pt-8 lg:px-8">
+        <header className="enter card-rest rounded-lg bg-white p-5 sm:p-7">
+          <div className="flex flex-col items-start justify-between gap-5 lg:flex-row lg:items-end">
+            <div>
+              <p className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-[var(--ink-muted)]">
+                {today && (
+                  <span className={`tag ${today.isOpen ? 'tag-gold' : 'tag-quiet'}`}>
+                    <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${today.isOpen ? 'bg-[var(--ink-on-gold)]' : 'bg-[var(--ink-muted)]'}`} />
+                    {today.isOpen ? 'Local abierto' : 'Local cerrado'} · Hoy: {today.time}
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+                  {STORE.address}
+                </span>
+              </p>
+              <h1 className="mt-2.5 font-display text-[30px] leading-tight tracking-[-0.02em] sm:text-[36px]">
+                Panel del local{' '}
+                {isHydrated && <span className="font-sans text-base font-medium text-[var(--ink-muted)]">· {todayFormat.format(new Date())}</span>}
+              </h1>
+              <p className="mt-1.5 text-[15px] text-[var(--ink-muted)]">Precios, stock y pedidos. Demo: los cambios se guardan solo en este navegador.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/" className="btn btn-quiet text-sm">
+                <Store className="h-4 w-4" aria-hidden="true" />
+                Ver la tienda
+              </Link>
+              <form action={logout}>
+                <button type="submit" className="btn btn-primary text-sm">
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
+                  Cerrar sesión
+                </button>
+              </form>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/" className="inline-flex min-h-11 items-center rounded-md border border-white/25 px-4 text-sm font-semibold hover:bg-white/10">
-              Ver la tienda
-            </Link>
-            <form action={logout}>
-              <button type="submit" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-white/25 px-4 text-sm font-semibold hover:bg-white/10">
-                <LogOut className="h-4 w-4" aria-hidden="true" />
-                Cerrar sesión
-              </button>
-            </form>
-          </div>
-        </div>
+
+          {isHydrated && (
+            <dl className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="rounded-btn bg-[var(--bg-subtle)] p-4">
+                <dt className="flex items-center justify-between text-[12px] font-bold uppercase tracking-[0.06em] text-[var(--ink-muted)]">
+                  Pedidos por atender
+                  <span className="icon-tile h-9 w-9">
+                    <ClipboardList className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                </dt>
+                <dd className="mt-1">
+                  <span className="font-display text-[32px] leading-none tabular-nums">{pendingOrders}</span>
+                  <span className="mt-1.5 block text-sm text-[var(--ink-muted)]">
+                    <span className="font-semibold tabular-nums text-[var(--ink-gold)]">{readyOrders}</span> {readyOrders === 1 ? 'listo' : 'listos'} para retirar
+                  </span>
+                </dd>
+              </div>
+              <div className="rounded-btn bg-[var(--bg-subtle)] p-4">
+                <dt className="flex items-center justify-between text-[12px] font-bold uppercase tracking-[0.06em] text-[var(--ink-muted)]">
+                  Catálogo publicado
+                  <span className="icon-tile h-9 w-9 bg-[var(--chip-strong)] text-[var(--ink-primary)]">
+                    <Boxes className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                </dt>
+                <dd className="mt-1">
+                  <span className="font-display text-[32px] leading-none tabular-nums">{activeCount}</span>{' '}
+                  <span className="text-sm text-[var(--ink-muted)]">{activeCount === 1 ? 'producto' : 'productos'}</span>
+                  <span className="mt-1.5 block text-sm text-[var(--ink-muted)]">
+                    <span className="tabular-nums">{materoCount}</span> de mate · <span className="tabular-nums">{activeCount - materoCount}</span> de perfumería
+                  </span>
+                  <span aria-hidden="true" className="mt-2 flex h-1 overflow-hidden rounded-full bg-[var(--brand-gold)]">
+                    <span className="bg-[var(--brand-espresso)]" style={{ width: `${activeCount ? (materoCount / activeCount) * 100 : 0}%` }} />
+                  </span>
+                </dd>
+              </div>
+              <div className="rounded-btn bg-[var(--bg-subtle)] p-4">
+                <dt className="flex items-center justify-between text-[12px] font-bold uppercase tracking-[0.06em] text-[var(--ink-muted)]">
+                  Stock bajo
+                  <span className={`icon-tile h-9 w-9 ${lowStock > 0 ? 'bg-[#f6d9d3] text-[var(--amancay-wine)]' : 'bg-[var(--brand-olive-wash)] text-[var(--brand-olive)]'}`}>
+                    <TriangleAlert className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                </dt>
+                <dd className="mt-1">
+                  <span className={`font-display text-[32px] leading-none tabular-nums ${lowStock > 0 ? 'text-[var(--amancay-wine)]' : ''}`}>{lowStock}</span>{' '}
+                  <span className="text-sm text-[var(--ink-muted)]">{lowStock === 1 ? 'línea' : 'líneas'}</span>
+                  <span className="mt-1.5 block text-sm text-[var(--ink-muted)]">Con {LOW_STOCK} unidades o menos. El detalle está en Resumen.</span>
+                </dd>
+              </div>
+            </dl>
+          )}
+        </header>
       </div>
 
-      <nav aria-label="Secciones del panel" className="sticky top-16 z-30 border-b border-[var(--amancay-border)] bg-white sm:top-20">
+      <nav aria-label="Secciones del panel" className="sticky top-16 z-30 mt-4 bg-[var(--bg-page)]/95 backdrop-blur-md sm:top-[72px] lg:top-[117px]">
         <ul className="no-scrollbar mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 py-2.5 sm:px-6 lg:px-8">
           {TABS.map((tab) => (
             <li key={tab.id}>
@@ -94,13 +171,13 @@ export function AdminPanel() {
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
                 aria-pressed={activeTab === tab.id}
-                className={`tap-interactive flex min-h-11 items-center gap-2 whitespace-nowrap rounded-md px-4 text-sm font-semibold ${
-                  activeTab === tab.id ? 'bg-[var(--ink-primary)] text-white' : 'text-[var(--ink-primary)] hover:bg-[var(--bg-subtle)]'
+                className={`tap-interactive flex min-h-11 items-center gap-2 whitespace-nowrap rounded-btn px-4 text-sm font-semibold ${
+                  activeTab === tab.id ? 'bg-[var(--brand-espresso)] text-white' : 'bg-[var(--chip)] text-[var(--ink-primary)] hover:bg-[var(--chip-strong)]'
                 }`}
               >
                 {tab.label}
                 {tab.id === 'orders' && pendingOrders > 0 && (
-                  <span className="rounded-full bg-[var(--amancay-gold-light)] px-2 text-xs tabular-nums text-[var(--ink-primary)]">
+                  <span className="rounded-full bg-[var(--brand-gold)] px-2 text-xs tabular-nums text-[var(--ink-on-gold)]">
                     {pendingOrders}
                     <span className="sr-only"> pendientes</span>
                   </span>
@@ -111,7 +188,7 @@ export function AdminPanel() {
         </ul>
       </nav>
 
-      <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+      <div key={activeTab} className="swap-in mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
         {!isHydrated ? (
           <p className="text-[var(--ink-muted)]">Cargando datos…</p>
         ) : activeTab === 'prices' ? (
@@ -205,12 +282,12 @@ function PricesTab({ products }: { products: Product[] }) {
         const get = (index: number) => (index >= 0 ? row[index] ?? '' : '');
         const priceRaw = get(col.price);
         const stockRaw = get(col.stock);
-        const price = priceRaw ? parseArNumber(priceRaw) : undefined;
+        const price = priceRaw ? parseArsPrice(priceRaw) : undefined;
         const stock = stockRaw ? parseArNumber(stockRaw) : undefined;
         const categoryRaw = normalizeText(get(col.category));
         const category = CATEGORIES.find((c) => c.id === categoryRaw)?.id;
-        if (price === null || (price !== undefined && price <= 0)) {
-          problems.push(`fila ${line}: precio "${priceRaw}" no válido`);
+        if (price === null) {
+          problems.push(`fila ${line}: precio "${priceRaw}" no válido (mayor a 0 y hasta ${formatPrice(MAX_PRICE)})`);
           return;
         }
         if (stock === null || (stock !== undefined && (stock < 0 || !Number.isInteger(stock)))) {
@@ -424,9 +501,9 @@ function ProductsTab({ products }: { products: Product[] }) {
   };
 
   const saveEdit = (p: Product) => {
-    const price = parseArNumber(editPrice);
-    if (price === null || price <= 0) {
-      setEditError('El precio tiene que ser un número mayor a 0.');
+    const price = parseArsPrice(editPrice);
+    if (price === null) {
+      setEditError(`El precio tiene que ser un número mayor a 0 y hasta ${formatPrice(MAX_PRICE)}.`);
       return;
     }
     const stocks = Object.fromEntries(Object.entries(editStock).map(([k, v]) => [k, parseArNumber(v)]));
@@ -583,7 +660,7 @@ function ProductsTab({ products }: { products: Product[] }) {
                       type="button"
                       onClick={() => toggleProductActive(p.id)}
                       aria-pressed={p.active}
-                      className={`min-h-9 rounded-full px-3 text-xs font-semibold ${
+                      className={`min-h-9 rounded-btn px-3 text-xs font-semibold ${
                         p.active ? 'bg-[var(--amancay-emerald)] text-white' : 'border border-[var(--amancay-border)] bg-white text-[var(--ink-muted)]'
                       }`}
                     >
@@ -634,10 +711,10 @@ function NewProductDialog({ open, onClose }: { open: boolean; onClose: () => voi
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const price = parseArNumber(data.price);
+    const price = parseArsPrice(data.price);
     const stock = parseArNumber(data.stock || '0');
     if (data.name.trim().length < 3) return setError('Escribí el nombre del producto.');
-    if (price === null || price <= 0) return setError('El precio tiene que ser un número mayor a 0.');
+    if (price === null) return setError(`El precio tiene que ser un número mayor a 0 y hasta ${formatPrice(MAX_PRICE)}.`);
     if (stock === null || stock < 0 || !Number.isInteger(stock)) return setError('El stock tiene que ser un número entero, 0 o más.');
     const image = safeImageUrl(data.imageUrl);
     if (data.imageUrl.trim() && !image) return setError('La foto tiene que ser un link que empiece con https://.');

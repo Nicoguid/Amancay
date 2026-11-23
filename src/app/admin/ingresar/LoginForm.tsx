@@ -91,7 +91,7 @@ export function LoginForm({ turnstileSiteKey }: { turnstileSiteKey: string }) {
       <button
         type="submit"
         disabled={pending || locked}
-        className="tap-interactive flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[var(--brand-leather)] font-semibold text-white hover:bg-[var(--brand-leather-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+        className="tap-interactive flex min-h-12 w-full items-center justify-center gap-2 rounded-btn bg-[var(--brand-leather)] font-semibold text-white hover:bg-[var(--brand-leather-hover)] disabled:cursor-not-allowed disabled:opacity-60"
       >
         <LockKeyhole className="h-4 w-4" aria-hidden="true" />
         {pending ? 'Verificando…' : locked ? `Bloqueado (${countdown})` : 'Ingresar'}

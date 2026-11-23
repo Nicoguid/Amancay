@@ -6,9 +6,10 @@ import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { FloatingWhatsApp } from '@/components/FloatingWhatsApp';
 import { CookieBanner } from '@/components/CookieBanner';
+import { MobileTabBar } from '@/components/MobileTabBar';
 import { SITE_URL } from '@/lib/storeConfig';
 
-// Tipografías del sistema "Taller & Almacén", autohospedadas (licencia OFL en ./fonts).
+// Tipografías del sistema visual (las del Figma "Amancay"), autohospedadas (licencia OFL en ./fonts).
 // next/font las precarga y genera un fallback con métricas ajustadas: sin salto de layout.
 const playfair = localFont({
   src: './fonts/PlayfairDisplay-latin-wght.woff2',
@@ -44,16 +45,16 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#faf7f2',
+  themeColor: '#fdf9f0',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es-AR" className={`${playfair.variable} ${jakarta.variable} h-full antialiased scroll-smooth`}>
+    <html lang="es-AR" className={`${playfair.variable} ${jakarta.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-[var(--bg-page)] text-[var(--ink-primary)] font-sans selection:bg-[var(--brand-brass-soft)] selection:text-[var(--ink-primary)]">
         <a
           href="#contenido"
-          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-full focus:bg-[var(--brand-leather)] focus:px-5 focus:py-3 focus:text-sm focus:font-semibold focus:text-white"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-btn focus:bg-[var(--brand-espresso)] focus:px-5 focus:py-3 focus:text-sm focus:font-semibold focus:text-white"
         >
           Saltar al contenido
         </a>
@@ -64,6 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Footer />
         <Suspense fallback={null}>
           <FloatingWhatsApp />
+          <MobileTabBar />
         </Suspense>
         <CookieBanner />
       </body>

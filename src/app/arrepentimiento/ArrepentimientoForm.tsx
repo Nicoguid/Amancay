@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { STORE, whatsappUrl } from '@/lib/storeConfig';
+import { STORE, waText, whatsappUrl } from '@/lib/storeConfig';
 import { looksAutomated, randomCode } from '@/lib/formGuard';
 
 type Request = { code: string; order: string; fullName: string; email: string; at: string };
@@ -53,7 +53,7 @@ export function ArrepentimientoForm() {
   };
 
   if (done) {
-    const text = `Hola Amancay, pido la revocación del pedido ${done.order} (botón de arrepentimiento). Código ${done.code}. ${done.fullName}, ${done.email}.`;
+    const text = `Hola Amancay, pido la revocación del pedido ${waText(done.order)} (botón de arrepentimiento). Código ${done.code}. ${waText(done.fullName)}, ${waText(done.email)}.`;
     return (
       <div role="status" className="mt-8 space-y-3 rounded-lg border border-[var(--brand-olive)] bg-[var(--brand-olive-wash)] p-6">
         <p className="font-display text-2xl">Recibimos tu pedido de revocación</p>
@@ -69,7 +69,7 @@ export function ArrepentimientoForm() {
           href={whatsappUrl(text)}
           target="_blank"
           rel="noopener noreferrer"
-          className="tap-interactive inline-flex min-h-12 items-center rounded-full bg-[var(--whatsapp-action)] px-6 font-semibold text-white hover:bg-[var(--whatsapp-action-hover)]"
+          className="tap-interactive inline-flex min-h-12 items-center rounded-btn bg-[var(--whatsapp-action)] px-6 font-semibold text-white hover:bg-[var(--whatsapp-action-hover)]"
         >
           Enviar el código por WhatsApp
         </a>
@@ -113,7 +113,7 @@ export function ArrepentimientoForm() {
       </div>
       <button
         type="submit"
-        className="tap-interactive min-h-12 w-full rounded-full bg-[var(--brand-leather)] font-semibold text-white hover:bg-[var(--brand-leather-hover)]"
+        className="tap-interactive min-h-12 w-full rounded-btn bg-[var(--brand-leather)] font-semibold text-white hover:bg-[var(--brand-leather-hover)]"
       >
         Pedir la revocación
       </button>
