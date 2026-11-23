@@ -120,14 +120,30 @@ export async function refundMpOrder(id: string): Promise<MpOrderState> {
   return getMpOrder(id);
 }
 
-/** Valida la firma del webhook. Devuelve false si falta el secreto o no coincide. */
+/**
+ * Valida la firma del webhook. Devuelve false si falta el secreto o no coincide.
+ *
+ * Mercado Pago firma el data.id en minúsculas cuando es alfanumérico (los ids de
+ * Orders vienen como "ORDTST01..."), pero el SDK lo usa tal cual llega. Por eso se
+ * prueba primero en minúsculas y después sin tocar. Las dos variantes necesitan
+ * el secreto, así que no se afloja la seguridad.
+ */
 export function validWebhookSignature(opts: { xSignature: string | null; xRequestId: string | null; dataId: string | null }): boolean {
   const secret = process.env.MP_WEBHOOK_SECRET;
-  if (!secret) return false;
-  try {
-    WebhookSignatureValidator.validate({ ...opts, secret, toleranceSeconds: 600 });
-    return true;
-  } catch {
+  if (!secret) {
+    console.error('[webhook mp] falta MP_WEBHOOK_SECRET');
     return false;
   }
+  const ids = [...new Set([opts.dataId?.toLowerCase() ?? null, opts.dataId])];
+  let reason = '';
+  for (const dataId of ids) {
+    try {
+      WebhookSignatureValidator.validate({ ...opts, dataId, secret, toleranceSeconds: 600 });
+      return true;
+    } catch (e) {
+      reason = e instanceof Error ? e.message : String(e);
+    }
+  }
+  console.error('[webhook mp] firma inválida:', reason);
+  return false;
 }
