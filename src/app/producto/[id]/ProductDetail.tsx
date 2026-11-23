@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ShoppingBag, Check, CreditCard, Truck, Store, MessageCircle, Minus, Plus, Bike, Map as MapIcon, MapPin } from 'lucide-react';
 import type { Product } from '@/lib/types';
-import { useStore, availableStock } from '@/context/StoreContext';
+import { useStore, availableStock, useCategoryInfo } from '@/context/StoreContext';
 import { ProductCard, fragranceNotes } from '@/components/ProductCard';
 import { ProductImage } from '@/components/ProductImage';
 import { SaveButton } from '@/components/SaveButton';
@@ -15,7 +15,8 @@ import { usePromoActive } from '@/lib/usePromo';
 import {
   PROMO,
   PROMO_UNTIL_LABEL,
-  SHIPPING_RATES,
+  CORREO_PRICE_LABEL,
+  MOTO_PRICE_LABEL,
   STORE,
   formatPrice,
   parsePostalCode,
@@ -26,8 +27,8 @@ import {
   whatsappUrl,
   waText,
 } from '@/lib/storeConfig';
-import { categoryInfo, categoryLabel } from '@/lib/categories';
 import { legalPath } from '@/lib/legal';
+import { getShippingQuote } from '@/app/checkout/shippingAction';
 
 export function ProductDetail({ id }: { id: string }) {
   const { products, isHydrated } = useStore();
@@ -46,6 +47,7 @@ export function ProductDetail({ id }: { id: string }) {
 const NOTE_KEYS = ['Notas de salida', 'Notas de corazón', 'Notas de fondo'];
 
 function ProductView({ product, products }: { product: Product; products: Product[] }) {
+  const rubro = useCategoryInfo(product.category);
   const { addToCart } = useStore();
   const promoActive = usePromoActive();
 
@@ -86,7 +88,7 @@ function ProductView({ product, products }: { product: Product; products: Produc
         <h1 className="mb-3 font-display text-3xl">{product.name}</h1>
         <p className="mb-6 text-[var(--ink-muted)]">Este producto no está disponible en este momento.</p>
         <Link href={`/catalogo?rubro=${product.category}`} className="link-brass">
-          Ver otros {categoryLabel(product.category).toLowerCase()}
+          Ver otros {rubro.label.toLowerCase()}
         </Link>
       </div>
     );
@@ -99,26 +101,35 @@ function ProductView({ product, products }: { product: Product; products: Produc
     timer.current = setTimeout(() => setAddStatus('idle'), 2500);
   };
 
-  const handleCalculateShipping = (e: React.FormEvent) => {
+  const handleCalculateShipping = async (e: React.FormEvent) => {
     e.preventDefault();
     const cp = parsePostalCode(postalCode);
     if (cp === null) {
       setShippingResult({ title: 'Código postal no válido', note: 'Escribí los 4 números del código postal, por ejemplo 1176.' });
       return;
     }
-    const zone = postalZone(cp);
-    if (zone === 'caba') {
+    if (postalZone(cp) === 'caba') {
       setShippingResult({
         title: 'Moto en CABA',
-        price: formatPrice(SHIPPING_RATES.moto_caba),
-        note: `También podés retirar sin costo en ${STORE.address}.`,
+        price: MOTO_PRICE_LABEL,
+        note: `La pedimos por app y se paga aparte. También podés retirar sin costo en ${STORE.address}.`,
       });
-    } else {
-      setShippingResult({
-        title: zone === 'gba' ? 'Correo Argentino a GBA' : 'Correo Argentino al interior',
-        price: formatPrice(zone === 'gba' ? SHIPPING_RATES.correo_gba : SHIPPING_RATES.correo_interior),
-        note: 'Con número de seguimiento.',
-      });
+      return;
+    }
+    setShippingResult({ title: 'Correo Argentino', price: 'Calculando…', note: 'Consultando a Correo Argentino.' });
+    try {
+      const quote = await getShippingQuote('correo_argentino', String(cp), [{ productId: product.id, variantId: variant?.id, quantity: 1 }]);
+      setShippingResult(
+        quote.ok
+          ? {
+              title: 'Correo Argentino',
+              price: `${formatPrice(quote.cost)}${quote.estimated ? ' (estimado)' : ''}`,
+              note: `${quote.service ?? 'A domicilio'}. Para este producto; con más productos el costo puede cambiar.`,
+            }
+          : { title: 'Correo Argentino', note: quote.error }
+      );
+    } catch {
+      setShippingResult({ title: 'Correo Argentino', note: 'No pudimos calcular el envío. Probá de nuevo.' });
     }
   };
 
@@ -227,7 +238,7 @@ function ProductView({ product, products }: { product: Product; products: Produc
             <li aria-hidden="true">/</li>
             <li>
               <Link href={`/catalogo?rubro=${product.category}`} className="inline-flex min-h-11 items-center hover:text-[var(--ink-primary)] hover:underline">
-                {categoryLabel(product.category)}
+                {rubro.label}
               </Link>
             </li>
             <li aria-hidden="true" className="hidden sm:block">
@@ -338,7 +349,7 @@ function ProductView({ product, products }: { product: Product; products: Produc
             {variants.length > 1 && (
               <fieldset className="mt-6">
                 <legend className="mb-2.5 flex w-full items-center justify-between font-semibold">
-                  <span>Elegí {categoryInfo(product.category).variantNoun === 'tamaño' ? 'el tamaño' : 'una opción'}</span>
+                  <span>Elegí {rubro.variantNoun === 'tamaño' ? 'el tamaño' : 'una opción'}</span>
                   <span className="text-[13px] font-semibold text-[var(--ink-gold)]">{variants.length} opciones</span>
                 </legend>
                 <div className="space-y-2">
@@ -443,8 +454,8 @@ function ProductView({ product, products }: { product: Product; products: Produc
               <ul className="mt-3 space-y-2">
                 {[
                   { icon: Store, title: 'Retiro en el local', detail: `${STORE.address}. Te avisamos por WhatsApp cuando está listo.`, price: 'Sin costo', free: true },
-                  { icon: Bike, title: 'Moto en CABA', detail: 'Coordinamos día y franja horaria por WhatsApp.', price: formatPrice(SHIPPING_RATES.moto_caba), free: false },
-                  { icon: Truck, title: 'Correo Argentino', detail: 'A todo el país, con número de seguimiento.', price: `Desde ${formatPrice(SHIPPING_RATES.correo_gba)}`, free: false },
+                  { icon: Bike, title: 'Moto en CABA', detail: 'La pedimos por app cuando está listo y se paga aparte.', price: MOTO_PRICE_LABEL, free: false },
+                  { icon: Truck, title: 'Correo Argentino', detail: 'A todo el país, con número de seguimiento.', price: CORREO_PRICE_LABEL, free: false },
                 ].map(({ icon: Icon, title, detail, price: cost, free }) => (
                   <li key={title} className="flex items-start gap-3 rounded-btn bg-[var(--bg-subtle)] p-3.5">
                     <Icon className="mt-0.5 h-5 w-5 shrink-0 text-[var(--ink-gold)]" aria-hidden="true" />
@@ -540,7 +551,7 @@ function ProductView({ product, products }: { product: Product; products: Produc
               <div>
                 <p className="eyebrow eyebrow-rule">Del mismo rubro</p>
                 <h2 id="related-title" className="mt-2 font-display text-[28px] tracking-[-0.02em] sm:text-[34px]">
-                  Más {categoryLabel(product.category).toLowerCase()}
+                  Más {rubro.label.toLowerCase()}
                 </h2>
               </div>
               <Link href={`/catalogo?rubro=${product.category}`} className="link-brass inline-flex min-h-11 items-center">

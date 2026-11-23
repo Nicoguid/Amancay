@@ -1,4 +1,5 @@
-export type ProductCategory = 'mates' | 'bombillas' | 'perfumes' | 'desodorantes' | 'combos';
+/** Id del rubro (tabla `categories`): la dueña puede crear rubros nuevos desde el panel. */
+export type ProductCategory = string;
 
 export interface ProductVariant {
   id: string;
@@ -29,6 +30,11 @@ export interface Product {
   active: boolean;
   specifications?: Record<string, string>;
   curadoOGuia?: string;
+  /** Paquete para Correo Argentino (si falta, se usa el típico del rubro). */
+  weightG?: number;
+  lengthCm?: number;
+  widthCm?: number;
+  heightCm?: number;
 }
 
 export type OrderStatus = 
@@ -37,7 +43,11 @@ export type OrderStatus =
   | 'en_preparacion'
   | 'listo_para_retirar'
   | 'despachado'
-  | 'entregado';
+  | 'entregado'
+  | 'cancelado';
+
+/** Estado del cobro, separado del estado del pedido (un pedido pagado puede reembolsarse). */
+export type PaymentStatus = 'pendiente' | 'aprobado' | 'rechazado' | 'reembolsado' | 'reembolso_parcial' | 'cancelado' | 'vencido';
 
 export type ShippingMethod = 'pickup' | 'moto_caba' | 'correo_argentino';
 export type PaymentMethod = 'mercadopago' | 'transferencia' | 'mostrador';
@@ -51,6 +61,8 @@ export interface OrderItem {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
+  /** Rubro al momento de la compra (para las métricas del panel). */
+  category?: string;
 }
 
 export interface Order {
@@ -75,6 +87,13 @@ export interface Order {
   paymentMethod: PaymentMethod;
   total: number;
   status: OrderStatus;
+  paymentStatus?: PaymentStatus;
+  /** Servicio de Correo cotizado (ej. "Paq.ar Clásico a domicilio"). */
+  shippingService?: string;
+  /** Hasta cuándo se reserva el stock si no se paga. */
+  expiresAt?: string;
+  /** Id de la Order de Mercado Pago (solo panel). */
+  mpOrderId?: string;
   /** Pedido inventado para la demo del panel. */
   isSample?: boolean;
   /** Qué documentos aceptó, qué versión, cuándo y cómo. */

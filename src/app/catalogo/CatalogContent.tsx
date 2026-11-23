@@ -3,13 +3,11 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Search, X, Store, MessageCircle, SlidersHorizontal } from 'lucide-react';
-import { useStore, priceRange } from '@/context/StoreContext';
+import { useStore, priceRange, useCategories } from '@/context/StoreContext';
 import { ProductCard } from '@/components/ProductCard';
 import { Reveal } from '@/components/Reveal';
 import { STORE, normalizeText, whatsappUrl } from '@/lib/storeConfig';
-import { CATEGORIES as RUBROS } from '@/lib/categories';
 
-const CATEGORIES = [{ id: 'all', name: 'Todo' }, ...RUBROS.map((c) => ({ id: c.id, name: c.label }))];
 
 const SORTS = [
   { id: 'destacados', name: 'Destacados' },
@@ -25,6 +23,8 @@ type SortId = (typeof SORTS)[number]['id'];
  * se pueden compartir, el botón Atrás funciona y los links del menú filtran aunque ya estés acá.
  */
 export function CatalogContent() {
+  const RUBROS = useCategories();
+  const CATEGORIES = [{ id: 'all', name: 'Todo' }, ...RUBROS.map((c) => ({ id: c.id, name: c.label }))];
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

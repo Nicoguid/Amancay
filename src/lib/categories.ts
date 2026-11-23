@@ -1,8 +1,9 @@
 import type { ProductCategory } from './types';
 
 /**
- * Los rubros del local, en un solo lugar: menú, catálogo, home, panel y filtros salen de acá.
- * Para sumar un rubro: agregalo en `ProductCategory` (types.ts) y en esta lista.
+ * Los rubros del local. Viven en la tabla `categories` y la dueña los edita desde el panel;
+ * la tienda los recibe con el catálogo (useCategories en el navegador, getCategories en el servidor).
+ * Esta lista es solo el respaldo para cuando no hay base configurada.
  */
 export interface CategoryInfo {
   id: ProductCategory;
@@ -13,9 +14,12 @@ export interface CategoryInfo {
   image: string;
   /** Qué elige el cliente cuando el producto tiene variantes. */
   variantNoun: string;
+  /** false = oculto en la tienda (solo lo ve el panel). */
+  active?: boolean;
+  position?: number;
 }
 
-export const CATEGORIES: CategoryInfo[] = [
+export const DEFAULT_CATEGORIES: CategoryInfo[] = [
   {
     id: 'mates',
     label: 'Mates',
@@ -53,17 +57,18 @@ export const CATEGORIES: CategoryInfo[] = [
   },
 ];
 
-export const CATEGORY_IDS = CATEGORIES.map((c) => c.id);
-
-export function categoryInfo(id: ProductCategory): CategoryInfo {
-  return CATEGORIES.find((c) => c.id === id) ?? CATEGORIES[0];
+/** Datos de un rubro. Si no está (rubro borrado u oculto), devuelve uno genérico con el id. */
+export function categoryInfo(id: ProductCategory, list: CategoryInfo[] = DEFAULT_CATEGORIES): CategoryInfo {
+  return (
+    list.find((c) => c.id === id) ?? { id, label: id.charAt(0).toUpperCase() + id.slice(1).replace(/-/g, ' '), blurb: '', image: '', variantNoun: 'opción' }
+  );
 }
 
-export function categoryLabel(id: ProductCategory): string {
-  return categoryInfo(id).label;
+export function categoryLabel(id: ProductCategory, list: CategoryInfo[] = DEFAULT_CATEGORIES): string {
+  return categoryInfo(id, list).label;
 }
 
 /** "Mates, bombillas, perfumes, desodorantes y combos" */
-export const CATEGORY_SENTENCE = new Intl.ListFormat('es', { type: 'conjunction' }).format(
-  CATEGORIES.map((c, i) => (i === 0 ? c.label : c.label.toLowerCase()))
-);
+export function categorySentence(list: CategoryInfo[]): string {
+  return new Intl.ListFormat('es', { type: 'conjunction' }).format(list.map((c, i) => (i === 0 ? c.label : c.label.toLowerCase())));
+}

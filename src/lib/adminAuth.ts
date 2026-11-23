@@ -1,4 +1,6 @@
-import { scryptSync, timingSafeEqual } from 'node:crypto';
+import 'server-only';
+import { createHash, scryptSync, timingSafeEqual } from 'node:crypto';
+import { db, dbConfigured } from '@/lib/server/supabase';
 
 /*
  * Contraseña del panel y límite de intentos.
@@ -10,8 +12,7 @@ import { scryptSync, timingSafeEqual } from 'node:crypto';
  * - Límite general: si en 15 minutos hay más de 30 fallos de cualquier IP (un ataque
  *   repartido), todos los intentos esperan más y, si Turnstile está configurado, se exige.
  *
- * El contador vive en la memoria del servidor: alcanza para un servidor propio o una sola
- * instancia. En Vercel (varias instancias) hay que pasarlo a Upstash Redis o Vercel KV.
+ * El contador vive en la base (ver más abajo), así que funciona con varias instancias.
  */
 
 const MAX_FAILS = 5;
@@ -19,10 +20,23 @@ const WINDOW_MS = 15 * 60_000;
 const BASE_LOCK_MS = 15 * 60_000;
 const MAX_LOCK_MS = 24 * 3600_000;
 const GLOBAL_FAILS = 30;
+const GLOBAL_KEY = 'global';
 
+/*
+ * Dónde vive el contador:
+ * - Con Supabase configurado: en la tabla admin_login_attempts (función atómica login_register_failure),
+ *   así funciona igual con varias instancias de Vercel.
+ * - Sin base (desarrollo local): en memoria, como antes.
+ * La IP no se guarda: se guarda un hash con el secreto de sesión.
+ */
 type Entry = { fails: number; first: number; lockedUntil: number; locks: number };
 const byIp = new Map<string, Entry>();
 let globalFails: number[] = [];
+
+const storeInDb = () => dbConfigured();
+const keyFor = (ip: string) =>
+  createHash('sha256').update(`${ip}|${process.env.ADMIN_SESSION_SECRET ?? ''}`).digest('hex');
+const interval = (ms: number) => `${Math.round(ms / 1000)} seconds`;
 
 export function passwordConfigured(): boolean {
   return !!process.env.ADMIN_PASSWORD_HASH && (process.env.ADMIN_SESSION_SECRET?.length ?? 0) >= 32;
@@ -46,19 +60,41 @@ export function verifyPassword(password: string): boolean {
 
 export type Gate = { allowed: true } | { allowed: false; retryInSeconds: number };
 
-export function checkAttempt(ip: string, now = Date.now()): Gate {
-  const e = byIp.get(ip);
-  if (e && e.lockedUntil > now) return { allowed: false, retryInSeconds: Math.ceil((e.lockedUntil - now) / 1000) };
-  return { allowed: true };
+export async function checkAttempt(ip: string, now = Date.now()): Promise<Gate> {
+  let lockedUntil = 0;
+  if (storeInDb()) {
+    const { data } = await db().from('admin_login_attempts').select('locked_until').eq('key', keyFor(ip)).maybeSingle();
+    lockedUntil = data?.locked_until ? new Date(data.locked_until).getTime() : 0;
+  } else {
+    lockedUntil = byIp.get(ip)?.lockedUntil ?? 0;
+  }
+  return lockedUntil > now ? { allowed: false, retryInSeconds: Math.ceil((lockedUntil - now) / 1000) } : { allowed: true };
 }
 
-export function underGlobalAttack(now = Date.now()): boolean {
+export async function underGlobalAttack(now = Date.now()): Promise<boolean> {
+  if (storeInDb()) {
+    const { data } = await db().from('admin_login_attempts').select('failures, last_attempt').eq('key', GLOBAL_KEY).maybeSingle();
+    return !!data && now - new Date(data.last_attempt).getTime() < WINDOW_MS && data.failures >= GLOBAL_FAILS;
+  }
   globalFails = globalFails.filter((t) => now - t < WINDOW_MS);
   return globalFails.length >= GLOBAL_FAILS;
 }
 
 /** Registra un fallo. Devuelve cuántos intentos le quedan a esa IP antes del bloqueo. */
-export function registerFailure(ip: string, now = Date.now()): { remaining: number; lockedForSeconds?: number } {
+export async function registerFailure(ip: string, now = Date.now()): Promise<{ remaining: number; lockedForSeconds?: number }> {
+  if (storeInDb()) {
+    // Contador general: nunca bloquea, solo cuenta (p_max enorme).
+    await db().rpc('login_register_failure', {
+      p_key: GLOBAL_KEY, p_max: 1_000_000_000, p_window: interval(WINDOW_MS), p_base_lock: '0 seconds', p_max_lock: '0 seconds',
+    });
+    const { data, error } = await db().rpc('login_register_failure', {
+      p_key: keyFor(ip), p_max: MAX_FAILS, p_window: interval(WINDOW_MS), p_base_lock: interval(BASE_LOCK_MS), p_max_lock: interval(MAX_LOCK_MS),
+    });
+    if (error || !data?.[0]) return { remaining: 0, lockedForSeconds: Math.ceil(BASE_LOCK_MS / 1000) }; // ante la duda, se bloquea
+    const row = data[0];
+    return row.locked_seconds > 0 ? { remaining: 0, lockedForSeconds: row.locked_seconds } : { remaining: row.remaining };
+  }
+
   globalFails.push(now);
   let e = byIp.get(ip);
   if (!e || now - e.first > WINDOW_MS) e = { fails: 0, first: now, lockedUntil: 0, locks: e?.locks ?? 0 };
@@ -78,14 +114,24 @@ export function registerFailure(ip: string, now = Date.now()): { remaining: numb
   return { remaining: MAX_FAILS - e.fails };
 }
 
-export function registerSuccess(ip: string) {
+export async function registerSuccess(ip: string) {
+  if (storeInDb()) {
+    await db().from('admin_login_attempts').delete().eq('key', keyFor(ip));
+    return;
+  }
   byIp.delete(ip);
 }
 
 /** Demora creciente por intento fallido (y extra si hay un ataque repartido). */
-export function failureDelayMs(ip: string): number {
-  const fails = byIp.get(ip)?.fails ?? 0;
-  return Math.min(400 + fails * 400, 2500) + (underGlobalAttack() ? 2000 : 0);
+export async function failureDelayMs(ip: string): Promise<number> {
+  let fails = 0;
+  if (storeInDb()) {
+    const { data } = await db().from('admin_login_attempts').select('failures').eq('key', keyFor(ip)).maybeSingle();
+    fails = data?.failures ?? 0;
+  } else {
+    fails = byIp.get(ip)?.fails ?? 0;
+  }
+  return Math.min(400 + fails * 400, 2500) + ((await underGlobalAttack()) ? 2000 : 0);
 }
 
 /** Verificación antibots con Cloudflare Turnstile, si hay claves configuradas. */

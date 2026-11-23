@@ -1,6 +1,6 @@
 import type { Product } from './types';
 import { SITE_URL, STORE, productPath } from './storeConfig';
-import { categoryLabel } from './categories';
+import { categoryLabel, type CategoryInfo } from './categories';
 
 /**
  * Datos estructurados (schema.org, JSON-LD). Solo describen lo que la página muestra:
@@ -43,7 +43,7 @@ function absolute(path: string) {
   return path.startsWith('http') ? path : `${SITE_URL}${path}`;
 }
 
-export function productJsonLd(product: Product) {
+export function productJsonLd(product: Product, categories?: CategoryInfo[]) {
   const prices = product.variants?.length ? product.variants.map((v) => v.price) : [product.price];
   const inStock = product.active && product.stock > 0;
   const availability = inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock';
@@ -69,7 +69,7 @@ export function productJsonLd(product: Product) {
         name: product.name,
         sku: product.sku,
         description: product.shortDescription ?? product.description,
-        category: categoryLabel(product.category),
+        category: categoryLabel(product.category, categories),
         brand: { '@type': 'Brand', name: product.brand },
         ...(product.images.length ? { image: product.images.map(absolute) } : {}),
         offers: { ...offers, seller: { '@id': `${SITE_URL}/#local` } },
@@ -81,7 +81,7 @@ export function productJsonLd(product: Product) {
           {
             '@type': 'ListItem',
             position: 2,
-            name: categoryLabel(product.category),
+            name: categoryLabel(product.category, categories),
             item: `${SITE_URL}/catalogo?rubro=${product.category}`,
           },
           { '@type': 'ListItem', position: 3, name: product.name, item: url },

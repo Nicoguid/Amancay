@@ -1,23 +1,36 @@
 'use client';
 
 /**
- * Store de la demo: catálogo, pedidos y carrito en localStorage.
+ * Estado de la tienda en el navegador.
+ *
+ * - El CATÁLOGO viene del servidor (Supabase) por <CatalogProvider>: precios y stock son los reales.
+ * - En este navegador quedan solo cosas de la persona, sin cuenta: carrito, guardados, perfil
+ *   y las referencias (código + email) de los pedidos que hizo desde acá.
+ * - Los pedidos en sí viven en la base: "Mis pedidos" los pide al servidor con código + email.
  *
  * Es un store externo leído con useSyncExternalStore:
- * - el servidor y el primer render del cliente usan los datos iniciales (sin errores de hidratación);
- * - después React vuelve a renderizar con lo guardado en localStorage;
- * - las acciones son funciones de módulo, estables, que devuelven su resultado al instante.
+ * - el servidor y el primer render del cliente usan el estado vacío (sin errores de hidratación);
+ * - después React vuelve a renderizar con lo guardado en localStorage.
  *
  * El carrito guarda solo ids y cantidades: precio y stock se leen siempre del catálogo vigente.
- *
- * Sin cuenta de usuario: los guardados, el perfil y "mis pedidos" también viven en este navegador.
  */
 
-import { useMemo, useSyncExternalStore } from 'react';
-import type { Order, OrderStatus, Product, ProductCategory, ProductVariant, ShippingMethod } from '@/lib/types';
-import { INITIAL_ORDERS, INITIAL_PRODUCTS } from '@/lib/mockData';
-import { slugify } from '@/lib/storeConfig';
+import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from 'react';
+import type { Product, ProductVariant, ShippingMethod } from '@/lib/types';
+import { DEFAULT_CATEGORIES, categoryInfo, type CategoryInfo } from '@/lib/categories';
+import { availableStock } from '@/lib/productUtils';
 import { track } from '@/lib/consent';
+
+// Se re-exportan para no tocar los imports de los componentes que ya los usan.
+export {
+  availableStock,
+  priceRange,
+  applyPercentage,
+  matchesMassFilter,
+  normalizeProduct,
+  type MassFilter,
+  type CsvProductRow,
+} from '@/lib/productUtils';
 
 // ---------- Tipos ----------
 
@@ -51,15 +64,20 @@ export const EMPTY_PROFILE: CustomerProfile = {
   postalCode: '',
 };
 
+/** Lo mínimo para volver a pedirle un pedido al servidor (el servidor exige los dos datos). */
+export interface OrderRef {
+  code: string;
+  email: string;
+  createdAt: string;
+}
+
 interface StoreState {
-  products: Product[];
-  orders: Order[];
   cart: StoredCartItem[];
   /** Ids de productos guardados para después. */
   saved: string[];
   profile: CustomerProfile | null;
-  /** Ids de los pedidos hechos desde este navegador (los del panel de ejemplo no cuentan). */
-  myOrders: string[];
+  /** Pedidos hechos desde este navegador. */
+  myOrders: OrderRef[];
 }
 
 export interface CartItem {
@@ -72,73 +90,56 @@ export interface CartItem {
   available: number;
 }
 
-export type MassFilter = 'all' | 'category' | 'brand';
-
-// ---------- Helpers puros ----------
-
-const roundTo50 = (value: number) => Math.round(value / 50) * 50;
-
-/** Las variantes valen precio base + modificador; el stock del producto es la suma de sus variantes. */
-export function normalizeProduct(product: Product): Product {
-  if (!product.variants || product.variants.length === 0) return product;
-  const variants = product.variants.map((v) => ({
-    ...v,
-    price: Math.max(0, product.price + (v.priceModifier ?? 0)),
-    stock: Math.max(0, Math.floor(v.stock)),
-  }));
-  return { ...product, variants, stock: variants.reduce((sum, v) => sum + v.stock, 0) };
-}
-
-export function availableStock(product: Product, variant?: ProductVariant): number {
-  return variant ? variant.stock : product.stock;
-}
-
-/** Precio mínimo (para mostrar "Desde $X" cuando las variantes tienen precios distintos). */
-export function priceRange(product: Product): { min: number; max: number } {
-  const prices = product.variants?.length ? product.variants.map((v) => v.price) : [product.price];
-  return { min: Math.min(...prices), max: Math.max(...prices) };
-}
-
-export function matchesMassFilter(product: Product, filterType: MassFilter, filterValue: string) {
-  if (filterType === 'all') return true;
-  if (filterType === 'category') return product.category === filterValue;
-  return product.brand.toLowerCase() === filterValue.toLowerCase();
-}
-
-/** Mismo cálculo para la vista previa y para el aumento real. */
-export function applyPercentage(product: Product, percentage: number): Product {
-  const factor = 1 + percentage / 100;
-  return normalizeProduct({
-    ...product,
-    price: roundTo50(product.price * factor),
-    originalPrice: product.originalPrice ? roundTo50(product.originalPrice * factor) : undefined,
-    variants: product.variants?.map((v) => ({ ...v, priceModifier: roundTo50((v.priceModifier ?? 0) * factor) })),
-  });
-}
-
 const cartLineId = (productId: string, variantId?: string) => (variantId ? `${productId}-${variantId}` : productId);
+
+// ---------- Catálogo (del servidor) ----------
+
+const CatalogContext = createContext<Product[]>([]);
+const CategoriesContext = createContext<CategoryInfo[]>(DEFAULT_CATEGORIES);
+
+/** Último catálogo recibido, para las acciones que corren fuera de React (ej. cambiar cantidades). */
+let catalogRef: Product[] = [];
+
+export function CatalogProvider({
+  products,
+  categories,
+  children,
+}: {
+  products: Product[];
+  categories: CategoryInfo[];
+  children: React.ReactNode;
+}) {
+  useEffect(() => {
+    catalogRef = products;
+  }, [products]);
+  return (
+    <CatalogContext.Provider value={products}>
+      <CategoriesContext.Provider value={categories}>{children}</CategoriesContext.Provider>
+    </CatalogContext.Provider>
+  );
+}
+
+/** Rubros visibles en la tienda, en el orden que eligió la dueña. */
+export function useCategories(): CategoryInfo[] {
+  return useContext(CategoriesContext);
+}
+
+/** Datos de un rubro (nombre, qué se elige en las variantes). */
+export function useCategoryInfo(id: string): CategoryInfo {
+  return categoryInfo(id, useContext(CategoriesContext));
+}
 
 // ---------- Persistencia ----------
 
-const STORAGE_VERSION = 'v5';
 const KEYS = {
-  products: `amancay_products_${STORAGE_VERSION}`,
-  orders: `amancay_orders_${STORAGE_VERSION}`,
-  cart: `amancay_cart_${STORAGE_VERSION}`,
+  // v6: los ids de variante pasaron a ser únicos en la base ("perf-01-v1"); los carritos viejos se descartan.
+  cart: 'amancay_cart_v6',
   saved: 'amancay_saved_v1',
   profile: 'amancay_profile_v1',
-  myOrders: 'amancay_my_orders_v1',
+  myOrders: 'amancay_my_orders_v2',
 };
-const LEGACY_KEYS = { products: 'amancay_products_v3__unused', orders: 'amancay_orders_v3__unused' };
 
-const SERVER_STATE: StoreState = {
-  products: INITIAL_PRODUCTS.map(normalizeProduct),
-  orders: INITIAL_ORDERS,
-  cart: [],
-  saved: [],
-  profile: null,
-  myOrders: [],
-};
+const SERVER_STATE: StoreState = { cart: [], saved: [], profile: null, myOrders: [] };
 
 function readJson<T>(key: string): T | null {
   try {
@@ -147,31 +148,6 @@ function readJson<T>(key: string): T | null {
   } catch {
     return null;
   }
-}
-
-function migrateOrder(order: Order): Order {
-  // v2 usaba "whatsapp" para "pagar en el local".
-  const paymentMethod = (order.paymentMethod as string) === 'whatsapp' ? 'mostrador' : order.paymentMethod;
-  return { ...order, paymentMethod, orderNumber: order.orderNumber.replace(/^#/, '') };
-}
-
-function loadState(): StoreState {
-  const products =
-    readJson<Product[]>(KEYS.products) ?? readJson<Product[]>(LEGACY_KEYS.products) ?? SERVER_STATE.products;
-  const orders = readJson<Order[]>(KEYS.orders) ?? readJson<Order[]>(LEGACY_KEYS.orders) ?? SERVER_STATE.orders;
-  const cart = readJson<StoredCartItem[]>(KEYS.cart) ?? [];
-  const saved = readJson<unknown>(KEYS.saved);
-  const profile = readJson<Partial<CustomerProfile>>(KEYS.profile);
-  const myOrders = readJson<unknown>(KEYS.myOrders);
-  const stringList = (value: unknown) => (Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : []);
-  return {
-    saved: stringList(saved),
-    profile: profile && typeof profile === 'object' ? sanitizeProfile(profile) : null,
-    myOrders: stringList(myOrders),
-    products: products.map(normalizeProduct),
-    orders: orders.map(migrateOrder),
-    cart: cart.filter((item) => item && typeof item.productId === 'string' && item.quantity > 0),
-  };
 }
 
 const SHIPPING_METHODS: ShippingMethod[] = ['pickup', 'moto_caba', 'correo_argentino'];
@@ -190,10 +166,33 @@ function sanitizeProfile(raw: Partial<CustomerProfile>): CustomerProfile {
   };
 }
 
+function sanitizeRefs(value: unknown): OrderRef[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(
+      (r): r is OrderRef =>
+        !!r && typeof r === 'object' && typeof r.code === 'string' && typeof r.email === 'string' && typeof r.createdAt === 'string'
+    )
+    .map((r) => ({ code: r.code.slice(0, 20), email: r.email.slice(0, 120), createdAt: r.createdAt.slice(0, 40) }))
+    .slice(0, 50);
+}
+
+function loadState(): StoreState {
+  const cart = readJson<StoredCartItem[]>(KEYS.cart) ?? [];
+  const saved = readJson<unknown>(KEYS.saved);
+  const profile = readJson<Partial<CustomerProfile>>(KEYS.profile);
+  return {
+    saved: Array.isArray(saved) ? saved.filter((v): v is string => typeof v === 'string') : [],
+    profile: profile && typeof profile === 'object' ? sanitizeProfile(profile) : null,
+    myOrders: sanitizeRefs(readJson<unknown>(KEYS.myOrders)),
+    cart: Array.isArray(cart)
+      ? cart.filter((item) => item && typeof item.productId === 'string' && Number.isInteger(item.quantity) && item.quantity > 0)
+      : [],
+  };
+}
+
 function persist(next: StoreState, prev: StoreState) {
   try {
-    if (next.products !== prev.products) window.localStorage.setItem(KEYS.products, JSON.stringify(next.products));
-    if (next.orders !== prev.orders) window.localStorage.setItem(KEYS.orders, JSON.stringify(next.orders));
     if (next.cart !== prev.cart) window.localStorage.setItem(KEYS.cart, JSON.stringify(next.cart));
     if (next.saved !== prev.saved) window.localStorage.setItem(KEYS.saved, JSON.stringify(next.saved));
     if (next.myOrders !== prev.myOrders) window.localStorage.setItem(KEYS.myOrders, JSON.stringify(next.myOrders));
@@ -202,7 +201,7 @@ function persist(next: StoreState, prev: StoreState) {
       else window.localStorage.removeItem(KEYS.profile);
     }
   } catch {
-    // Modo incógnito o cuota llena: la demo sigue funcionando en memoria.
+    // Modo incógnito o cuota llena: la tienda sigue funcionando en memoria.
   }
 }
 
@@ -246,8 +245,8 @@ function setState(updater: (state: StoreState) => StoreState) {
 
 // ---------- Acciones ----------
 
-function findLine(state: StoreState, productId: string, variantId?: string) {
-  const product = state.products.find((p) => p.id === productId);
+function findLine(productId: string, variantId?: string) {
+  const product = catalogRef.find((p) => p.id === productId);
   const variant = variantId ? product?.variants?.find((v) => v.id === variantId) : undefined;
   return { product, variant };
 }
@@ -256,8 +255,11 @@ function findLine(state: StoreState, productId: string, variantId?: string) {
 function addToCart(product: Product, quantity = 1, variant?: ProductVariant): number {
   let added = 0;
   setState((state) => {
-    const { product: current, variant: currentVariant } = findLine(state, product.id, variant?.id);
-    if (!current || !current.active) return state;
+    // Se usa el producto del catálogo vigente si ya llegó; si no, el que pasó el componente (mismo origen).
+    const found = findLine(product.id, variant?.id);
+    const current = found.product ?? product;
+    const currentVariant = found.variant ?? variant;
+    if (!current.active) return state;
     const available = availableStock(current, currentVariant);
     const existing = state.cart.find((i) => i.productId === product.id && i.variantId === variant?.id);
     const inCart = existing?.quantity ?? 0;
@@ -284,7 +286,7 @@ function updateCartQuantity(cartItemId: string, delta: number) {
     const cart = state.cart
       .map((item) => {
         if (cartLineId(item.productId, item.variantId) !== cartItemId) return item;
-        const { product, variant } = findLine(state, item.productId, item.variantId);
+        const { product, variant } = findLine(item.productId, item.variantId);
         const max = product ? availableStock(product, variant) : 0;
         return { ...item, quantity: Math.min(max, item.quantity + delta) };
       })
@@ -297,10 +299,9 @@ function clearCart() {
   setState((state) => (state.cart.length ? { ...state, cart: [] } : state));
 }
 
-// ---------- Guardados y perfil (sin cuenta, en este navegador) ----------
+// ---------- Guardados, perfil y pedidos propios (sin cuenta, en este navegador) ----------
 
 const MAX_SAVED = 60;
-const MAX_ORDERS = 300;
 
 /** Guarda o quita un producto. Devuelve true si quedó guardado. */
 function toggleSaved(productId: string): boolean {
@@ -326,145 +327,16 @@ function clearProfile() {
   setState((state) => (state.profile ? { ...state, profile: null } : state));
 }
 
-function updateProduct(id: string, updated: Partial<Product>) {
+/** Después de confirmar un pedido: se recuerda código + email para mostrarlo en "Mis pedidos". */
+function rememberOrder(ref: OrderRef) {
   setState((state) => ({
     ...state,
-    products: state.products.map((p) => (p.id === id ? normalizeProduct({ ...p, ...updated }) : p)),
+    myOrders: [ref, ...state.myOrders.filter((r) => r.code !== ref.code)].slice(0, 50),
   }));
 }
 
-function addProduct(newProduct: Omit<Product, 'id'>): Product {
-  const product = normalizeProduct({ ...newProduct, id: `prod-${Date.now()}` });
-  setState((state) => ({ ...state, products: [product, ...state.products] }));
-  return product;
-}
-
-function toggleProductActive(id: string) {
-  setState((state) => ({
-    ...state,
-    products: state.products.map((p) => (p.id === id ? { ...p, active: !p.active } : p)),
-  }));
-}
-
-/** Aplica el aumento y devuelve los productos previos para poder deshacer. */
-function applyMassPercentageIncrease(filterType: MassFilter, filterValue: string, percentage: number) {
-  const previous = getSnapshot().products;
-  let affectedCount = 0;
-  setState((state) => ({
-    ...state,
-    products: state.products.map((p) => {
-      if (!matchesMassFilter(p, filterType, filterValue)) return p;
-      affectedCount++;
-      return applyPercentage(p, percentage);
-    }),
-  }));
-  return { affectedCount, previous };
-}
-
-function restoreProducts(products: Product[]) {
-  setState((state) => ({ ...state, products }));
-}
-
-export interface CsvProductRow {
-  sku?: string;
-  id?: string;
-  name?: string;
-  brand?: string;
-  category?: ProductCategory;
-  price?: number;
-  stock?: number;
-}
-
-/** Actualiza por SKU (o ID). Solo pisa los campos que vienen con valor. */
-function importProductsFromCsvData(rows: CsvProductRow[]) {
-  let updated = 0;
-  let created = 0;
-  setState((state) => {
-    const products = [...state.products];
-    for (const row of rows) {
-      const index = products.findIndex((p) => (row.sku && p.sku === row.sku) || (row.id && p.id === row.id));
-      if (index >= 0) {
-        const current = products[index];
-        const patch: Partial<Product> = {};
-        if (row.name) patch.name = row.name;
-        if (row.brand) patch.brand = row.brand;
-        if (row.category) patch.category = row.category;
-        if (row.price !== undefined) patch.price = row.price;
-        // Con variantes, el stock se maneja por variante y no se pisa desde la planilla.
-        if (row.stock !== undefined && !current.variants?.length) patch.stock = row.stock;
-        products[index] = normalizeProduct({ ...current, ...patch });
-        updated++;
-      } else if (row.name && row.price !== undefined && row.category) {
-        products.unshift({
-          id: `prod-${Date.now()}-${created}`,
-          name: row.name,
-          slug: slugify(row.name),
-          category: row.category,
-          brand: row.brand || 'Amancay',
-          description: '',
-          price: row.price,
-          stock: row.stock ?? 0,
-          images: [],
-          sku: row.sku || `SKU-${Date.now()}-${created}`,
-          active: true,
-        });
-        created++;
-      }
-    }
-    return { ...state, products };
-  });
-  return { updated, created };
-}
-
-export type CreateOrderResult = { ok: true; order: Order } | { ok: false; error: string };
-
-/** Crea el pedido con los precios vigentes, valida y descuenta stock, y vacía el carrito. */
-function createOrder(input: Omit<Order, 'id' | 'orderNumber' | 'createdAt'>): CreateOrderResult {
-  const state = getSnapshot();
-  for (const item of input.items) {
-    const product = state.products.find((p) => p.id === item.productId);
-    const variant = product?.variants?.find((v) => v.id === item.variantId);
-    if (!product || availableStock(product, variant) < item.quantity) {
-      return { ok: false, error: `No hay stock suficiente de ${item.productName}. Revisá el carrito.` };
-    }
-  }
-
-  const order: Order = {
-    ...input,
-    id: `ord-${Date.now()}`,
-    orderNumber: `AMC-${String(Date.now()).slice(-6)}`,
-    createdAt: new Date().toISOString(),
-  };
-
-  setState((s) => ({
-    ...s,
-    myOrders: [order.id, ...s.myOrders].slice(0, 50),
-    products: s.products.map((product) => {
-      const lines = input.items.filter((i) => i.productId === product.id);
-      if (!lines.length) return product;
-      if (product.variants?.length) {
-        return normalizeProduct({
-          ...product,
-          variants: product.variants.map((v) => {
-            const sold = lines.filter((l) => l.variantId === v.id).reduce((n, l) => n + l.quantity, 0);
-            return sold ? { ...v, stock: v.stock - sold } : v;
-          }),
-        });
-      }
-      return { ...product, stock: product.stock - lines.reduce((n, l) => n + l.quantity, 0) };
-    }),
-    // Tope de pedidos guardados: el localStorage tiene ~5 MB y llenarlo rompe el carrito (QuotaExceededError).
-    orders: [order, ...s.orders].slice(0, MAX_ORDERS),
-    cart: [],
-  }));
-  return { ok: true, order };
-}
-
-function updateOrderStatus(orderId: string, status: OrderStatus) {
-  setState((state) => ({
-    ...state,
-    orders: state.orders.map((o) => (o.id === orderId ? { ...o, status } : o)),
-  }));
+function forgetOrder(code: string) {
+  setState((state) => ({ ...state, myOrders: state.myOrders.filter((r) => r.code !== code) }));
 }
 
 const actions = {
@@ -472,18 +344,12 @@ const actions = {
   removeFromCart,
   updateCartQuantity,
   clearCart,
-  updateProduct,
-  addProduct,
-  toggleProductActive,
-  applyMassPercentageIncrease,
-  restoreProducts,
-  importProductsFromCsvData,
-  createOrder,
-  updateOrderStatus,
   toggleSaved,
   clearSaved,
   saveProfile,
   clearProfile,
+  rememberOrder,
+  forgetOrder,
 };
 
 // ---------- Hooks ----------
@@ -499,14 +365,20 @@ export function useHydrated(): boolean {
   );
 }
 
+/** Solo el catálogo (para componentes que no necesitan carrito ni guardados). */
+export function useCatalog(): Product[] {
+  return useContext(CatalogContext);
+}
+
 export function useStore() {
   const state = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const products = useContext(CatalogContext);
   const isHydrated = useHydrated();
 
   const cart = useMemo<CartItem[]>(() => {
     const lines: CartItem[] = [];
     for (const item of state.cart) {
-      const product = state.products.find((p) => p.id === item.productId);
+      const product = products.find((p) => p.id === item.productId);
       if (!product || !product.active) continue;
       const variant = item.variantId ? product.variants?.find((v) => v.id === item.variantId) : undefined;
       if (item.variantId && !variant) continue;
@@ -521,7 +393,7 @@ export function useStore() {
       });
     }
     return lines.filter((l) => l.quantity > 0);
-  }, [state.cart, state.products]);
+  }, [state.cart, products]);
 
   const cartCount = cart.reduce((n, item) => n + item.quantity, 0);
   const cartTotal = cart.reduce((n, item) => n + item.unitPrice * item.quantity, 0);
@@ -530,27 +402,17 @@ export function useStore() {
   const saved = useMemo<Product[]>(
     () =>
       state.saved
-        .map((id) => state.products.find((p) => p.id === id))
+        .map((id) => products.find((p) => p.id === id))
         .filter((p): p is Product => !!p && p.active),
-    [state.saved, state.products]
-  );
-
-  /** Pedidos hechos desde este navegador, del más nuevo al más viejo. */
-  const myOrders = useMemo<Order[]>(
-    () =>
-      state.myOrders
-        .map((id) => state.orders.find((o) => o.id === id))
-        .filter((o): o is Order => !!o && !o.isSample),
-    [state.myOrders, state.orders]
+    [state.saved, products]
   );
 
   return {
-    products: state.products,
-    orders: state.orders,
+    products,
     saved,
     savedIds: state.saved,
     profile: state.profile,
-    myOrders,
+    myOrders: state.myOrders,
     cart,
     cartCount,
     cartTotal,

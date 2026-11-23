@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ShoppingBag, Check, MessageCircle } from 'lucide-react';
 import type { Product } from '@/lib/types';
-import { useStore, availableStock, priceRange } from '@/context/StoreContext';
+import { useStore, availableStock, priceRange, useCategories } from '@/context/StoreContext';
 import { TAX, formatPrice, netPrice, productPath, whatsappUrl, waText } from '@/lib/storeConfig';
 import { ProductImage } from './ProductImage';
 import { SaveButton } from './SaveButton';
@@ -49,6 +49,7 @@ export function ProductCard({
   /** En grillas de 3 columnas la foto va apaisada en escritorio (si no, la tarjeta queda muy alta). */
   widePhoto?: boolean;
 }) {
+  const categories = useCategories();
   const { addToCart } = useStore();
   const [status, setStatus] = useState<'idle' | 'added' | 'no-stock'>('idle');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -71,7 +72,7 @@ export function ProductCard({
   const href = productPath(product);
   const Heading = headingLevel === 2 ? 'h2' : 'h3';
   const notes = showNotes ? fragranceNotes(product) : [];
-  const noun = categoryInfo(product.category).variantNoun;
+  const noun = categoryInfo(product.category, categories).variantNoun;
 
   const handleAdd = () => {
     const added = addToCart(product, 1, variant);

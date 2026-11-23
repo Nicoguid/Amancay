@@ -35,7 +35,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   }
   const ip = await clientIp();
 
-  const gate = checkAttempt(ip);
+  const gate = await checkAttempt(ip);
   if (!gate.allowed) {
     return { error: `Demasiados intentos. Probá de nuevo en ${minutes(gate.retryInSeconds)}.`, retryInSeconds: gate.retryInSeconds };
   }
@@ -49,20 +49,20 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   const passwordOk = humanOk && verifyPassword(password);
 
   if (!passwordOk) {
-    await wait(failureDelayMs(ip));
-    const { remaining, lockedForSeconds } = registerFailure(ip);
+    await wait(await failureDelayMs(ip));
+    const { remaining, lockedForSeconds } = await registerFailure(ip);
     if (lockedForSeconds) {
       return { error: `Demasiados intentos. El ingreso queda bloqueado ${minutes(lockedForSeconds)}.`, retryInSeconds: lockedForSeconds };
     }
     if (!humanOk && turnstileConfigured()) return { error: 'No pudimos verificar que no seas un robot. Probá de nuevo.' };
     return {
       error: `Contraseña incorrecta. ${remaining === 1 ? 'Te queda 1 intento' : `Te quedan ${remaining} intentos`} antes de que se bloquee el ingreso.${
-        underGlobalAttack() ? ' Hay muchos intentos fallidos en este momento: el ingreso está más lento.' : ''
+        (await underGlobalAttack()) ? ' Hay muchos intentos fallidos en este momento: el ingreso está más lento.' : ''
       }`,
     };
   }
 
-  registerSuccess(ip);
+  await registerSuccess(ip);
   const token = createSessionToken();
   if (!token) return { error: 'Falta ADMIN_SESSION_SECRET en la configuración del servidor.' };
   (await cookies()).set(SESSION_COOKIE, token, sessionCookieOptions);

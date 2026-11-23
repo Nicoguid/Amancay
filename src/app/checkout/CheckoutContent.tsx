@@ -7,14 +7,15 @@ import { ShoppingBag, ArrowLeft, Copy, MessageCircle, Store, Truck, Bike, Info, 
 import { useStore } from '@/context/StoreContext';
 import { ProductCard } from '@/components/ProductCard';
 import type { Order, PaymentMethod, ShippingMethod } from '@/lib/types';
-import { SHIPPING_LABELS, SHIPPING_RATES, STORE, formatPrice, shippingCost, whatsappUrl, waText } from '@/lib/storeConfig';
+import { CORREO_PRICE_LABEL, MOTO_PRICE_LABEL, SHIPPING_LABELS, STORE, formatPrice, whatsappUrl, waText } from '@/lib/storeConfig';
+import { useShippingQuote } from '@/lib/useShippingQuote';
 import { recordConsent, track } from '@/lib/consent';
+import { placeOrder } from './actions';
 import { looksAutomated } from '@/lib/formGuard';
 import { AAIP_ACCESS_NOTICE, AAIP_AUTHORITY_NOTICE, legalPath } from '@/lib/legal';
 import { DELIVERY_CHOICE_KEY } from '@/lib/cartMessage';
 
-type FieldName = 'fullName' | 'dni' | 'phone' | 'email' | 'address' | 'city' | 'postalCode' | 'notes';
-type FormData = Record<FieldName, string>;
+import { validateCheckout as validate, type CheckoutForm as FormData, type CheckoutField as FieldName } from '@/lib/checkoutValidation';
 
 const EMPTY_FORM: FormData = { fullName: '', dni: '', phone: '', email: '', address: '', city: 'CABA', postalCode: '', notes: '' };
 
@@ -55,24 +56,9 @@ function StepLegend({ step, children }: { step?: number; children: React.ReactNo
   );
 }
 
-function validate(data: FormData, shipping: ShippingMethod): Partial<Record<FieldName, string>> {
-  const errors: Partial<Record<FieldName, string>> = {};
-  if (data.fullName.trim().length < 3) errors.fullName = 'Escribí tu nombre y apellido.';
-  // El DNI solo lo pide Correo Argentino: no se pide para retiro ni moto.
-  if (shipping === 'correo_argentino' && !/^\d{7,8}$/.test(data.dni.replace(/[.\-\s]/g, '')))
-    errors.dni = 'Escribí el DNI sin puntos (7 u 8 números).';
-  if (data.phone.replace(/\D/g, '').length < 8) errors.phone = 'Escribí un teléfono con código de área, ej.: 11 2345 6789.';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim())) errors.email = 'Escribí un email válido, ej.: nombre@mail.com.';
-  if (shipping !== 'pickup') {
-    if (data.address.trim().length < 5) errors.address = 'Escribí calle, número, piso y departamento.';
-    if (!/\d{4}/.test(data.postalCode)) errors.postalCode = 'Escribí el código postal (4 números).';
-    if (!data.city.trim()) errors.city = 'Escribí la localidad o barrio.';
-  }
-  return errors;
-}
-
 export function CheckoutContent() {
-  const { cart, cartTotal, createOrder, products, isHydrated, profile, saveProfile } = useStore();
+  const { cart, cartTotal, products, isHydrated, profile, saveProfile, clearCart, rememberOrder } = useStore();
+  const [submitting, setSubmitting] = useState(false);
   const [shippingMethod, setShippingMethod] = useState<ShippingMethod>(() => deliveryChosenInCart() ?? 'pickup');
   // Opcional y sin marcar: guardar estos datos en el navegador para la próxima compra.
   const [rememberMe, setRememberMe] = useState(false);
@@ -98,6 +84,14 @@ export function CheckoutContent() {
     track('begin_checkout', { value: cartTotal, currency: 'ARS', items: cart.length });
   }, [isHydrated, cart.length, cartTotal]);
   const formRef = useRef<HTMLFormElement>(null);
+
+  // Envío: lo cotiza el servidor (MiCorreo para Correo). La moto va "a confirmar" y se paga aparte.
+  const quoteState = useShippingQuote(
+    shippingMethod,
+    form.postalCode,
+    cart.map((i) => ({ productId: i.product.id, variantId: i.selectedVariant?.id, quantity: i.quantity }))
+  );
+  const quote = quoteState.status === 'done' ? quoteState.quote : null;
 
   // Si la persona guardó su perfil, el formulario arranca completo (una sola vez, al leer el navegador).
   const [prefilled, setPrefilled] = useState(false);
@@ -164,8 +158,21 @@ export function CheckoutContent() {
     );
   }
 
-  const shipping = shippingCost(shippingMethod, form.postalCode);
+  // null = todavía no se sabe (falta CP, cotizando o error)
+  const shipping = shippingMethod === 'pickup' ? 0 : quote?.ok ? quote.cost : null;
   const finalTotal = cartTotal + (shipping ?? 0);
+  const shippingLabel =
+    shippingMethod === 'pickup'
+      ? 'Sin costo'
+      : shippingMethod === 'moto_caba' && quote?.ok
+        ? MOTO_PRICE_LABEL
+        : quoteState.status === 'loading'
+          ? 'Calculando…'
+          : quote?.ok
+            ? `${formatPrice(quote.cost)}${quote.estimated ? ' (estimado)' : ''}`
+            : shippingMethod === 'moto_caba'
+              ? MOTO_PRICE_LABEL
+              : 'Falta el CP';
 
   const setField = (name: FieldName, value: string) => {
     setForm((f) => ({ ...f, [name]: value }));
@@ -178,8 +185,9 @@ export function CheckoutContent() {
     if (method !== 'pickup' && paymentMethod === 'mostrador') setPaymentMethod('transferencia');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     setSubmitError(null);
     const found = validate(form, shippingMethod);
     setErrors(found);
@@ -201,45 +209,35 @@ export function CheckoutContent() {
       setSubmitError('No pudimos confirmar el pedido. Esperá unos segundos y probá de nuevo, o escribinos por WhatsApp.');
       return;
     }
-    const consent = [
-      recordConsent({ doc: 'terminos', decision: 'aceptado', method: 'casilla en checkout' }),
-      recordConsent({ doc: 'privacidad', decision: 'aceptado', method: 'casilla en checkout' }),
-    ];
+    // Copia local del consentimiento (el registro que vale lo guarda el servidor junto con el pedido).
+    recordConsent({ doc: 'terminos', decision: 'aceptado', method: 'casilla en checkout' });
+    recordConsent({ doc: 'privacidad', decision: 'aceptado', method: 'casilla en checkout' });
 
-    const result = createOrder({
-      customer: {
-        fullName: form.fullName,
-        phone: form.phone,
-        email: form.email,
-        dni: shippingMethod === 'correo_argentino' ? form.dni.replace(/\D/g, '') : undefined,
-        address: shippingMethod === 'pickup' ? undefined : form.address,
-        city: shippingMethod === 'pickup' ? undefined : form.city,
-        postalCode: shippingMethod === 'pickup' ? undefined : form.postalCode,
-        notes: form.notes || undefined,
-      },
-      items: cart.map((item) => ({
-        productId: item.product.id,
-        productName: item.product.name,
-        productImage: item.product.images[0] ?? '',
-        variantId: item.selectedVariant?.id,
-        variantName: item.selectedVariant?.name,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        totalPrice: item.unitPrice * item.quantity,
-      })),
-      subtotal: cartTotal,
-      shippingMethod,
-      shippingCost: shipping ?? 0,
-      paymentMethod,
-      total: finalTotal,
-      status: 'pendiente',
-      consent,
-    });
+    setSubmitting(true);
+    let result: Awaited<ReturnType<typeof placeOrder>>;
+    try {
+      // Solo viaja qué producto y cuántos: el precio y el envío los pone el servidor.
+      result = await placeOrder({
+        form,
+        items: cart.map((item) => ({ productId: item.product.id, variantId: item.selectedVariant?.id, quantity: item.quantity })),
+        shippingMethod,
+        paymentMethod,
+        acceptedTerms: acceptTerms,
+        acceptedPrivacy: acceptPrivacy,
+        honeypot,
+        elapsedMs: Date.now() - startedAt.current,
+      });
+    } catch {
+      result = { ok: false, error: 'No pudimos conectarnos. Revisá tu conexión y probá de nuevo.' };
+    }
 
     if (!result.ok) {
+      setSubmitting(false);
+      if (result.fieldErrors) setErrors(result.fieldErrors);
       setSubmitError(result.error);
       return;
     }
+    const placed = result.order;
     if (rememberMe) {
       saveProfile({
         fullName: form.fullName.trim(),
@@ -257,8 +255,16 @@ export function CheckoutContent() {
     } catch {
       // Sin sessionStorage no hay nada que limpiar.
     }
-    setOrder(result.order);
-    track('purchase', { transaction_id: result.order.orderNumber, value: result.order.total, currency: 'ARS', items: result.order.items.length });
+    rememberOrder({ code: placed.orderNumber, email: form.email.trim().toLowerCase(), createdAt: placed.createdAt });
+    clearCart();
+    track('purchase', { transaction_id: placed.orderNumber, value: placed.total, currency: 'ARS', items: placed.items.length });
+
+    if (result.checkoutUrl) {
+      // A pagar en Mercado Pago; al terminar vuelve a /checkout/resultado.
+      window.location.assign(result.checkoutUrl);
+      return;
+    }
+    setOrder(placed);
     window.scrollTo({ top: 0 });
   };
 
@@ -296,13 +302,22 @@ export function CheckoutContent() {
 
   const shippingOptions: { id: ShippingMethod; icon: typeof Store; title: string; detail: string; price: string }[] = [
     { id: 'pickup', icon: Store, title: 'Retiro en el local', detail: `${STORE.address}. Te avisamos por WhatsApp cuando está listo.`, price: 'Sin costo' },
-    { id: 'moto_caba', icon: Bike, title: 'Moto en CABA', detail: 'Coordinamos día y franja por WhatsApp.', price: formatPrice(SHIPPING_RATES.moto_caba) },
+    {
+      id: 'moto_caba',
+      icon: Bike,
+      title: 'Moto en CABA',
+      detail: 'La pedimos por app cuando el pedido está listo. El costo se confirma en ese momento y lo pagás aparte.',
+      price: MOTO_PRICE_LABEL,
+    },
     {
       id: 'correo_argentino',
       icon: Truck,
       title: 'Correo Argentino',
-      detail: `GBA ${formatPrice(SHIPPING_RATES.correo_gba)} · Resto del país ${formatPrice(SHIPPING_RATES.correo_interior)}`,
-      price: shippingMethod === 'correo_argentino' && shipping !== null ? formatPrice(shipping) : 'Según CP',
+      detail:
+        shippingMethod === 'correo_argentino' && quote?.ok && quote.service
+          ? quote.service
+          : 'A domicilio en todo el país, con número de seguimiento. Se calcula con tu código postal.',
+      price: shippingMethod === 'correo_argentino' && quote?.ok ? formatPrice(quote.cost) : CORREO_PRICE_LABEL,
     },
   ];
 
@@ -311,8 +326,11 @@ export function CheckoutContent() {
     { id: 'mercadopago', title: 'Mercado Pago', detail: 'Tarjetas de crédito, débito o dinero en cuenta.' },
     {
       id: 'mostrador',
-      title: 'Pagar en el local',
-      detail: shippingMethod === 'pickup' ? 'Efectivo o tarjeta al retirar.' : 'Disponible solo con retiro en el local.',
+      title: 'Efectivo o tarjeta al retirar',
+      detail:
+        shippingMethod === 'pickup'
+          ? 'Pagás en el local (hay posnet) cuando lo venís a buscar. Te lo guardamos 72 horas.'
+          : 'Disponible solo con retiro en el local.',
       disabled: shippingMethod !== 'pickup',
     },
   ];
@@ -359,7 +377,7 @@ export function CheckoutContent() {
                 </div>
                 <div className="flex justify-between text-[var(--ink-muted)]">
                   <dt>{SHIPPING_LABELS[shippingMethod]}</dt>
-                  <dd className="tabular-nums">{shipping === null ? 'Falta el CP' : shipping === 0 ? 'Sin costo' : formatPrice(shipping)}</dd>
+                  <dd className="tabular-nums">{shippingLabel}</dd>
                 </div>
                 <div className="flex items-baseline justify-between border-t border-[var(--amancay-border)] pt-3 font-semibold">
                   <dt>Total</dt>
@@ -441,6 +459,21 @@ export function CheckoutContent() {
                     {field('city', 'Localidad o barrio', { type: 'text', autoComplete: 'address-level2' })}
                     {field('postalCode', 'Código postal', { type: 'text', inputMode: 'numeric', autoComplete: 'postal-code', placeholder: 'Ej.: 1176' })}
                   </div>
+                  <p aria-live="polite" className="text-sm">
+                    {quoteState.status === 'loading' && <span className="text-[var(--ink-muted)]">Calculando el envío…</span>}
+                    {quote && !quote.ok && !errors.postalCode && <span className="text-[var(--amancay-wine)]">{quote.error}</span>}
+                    {quote?.ok && shippingMethod === 'moto_caba' && (
+                      <span className="text-[var(--ink-secondary)]">
+                        La moto se paga aparte: te confirmamos el costo por WhatsApp cuando la pedimos.
+                      </span>
+                    )}
+                    {quote?.ok && shippingMethod === 'correo_argentino' && (
+                      <span className="text-[var(--ink-secondary)]">
+                        {quote.service}: {formatPrice(quote.cost)}
+                        {quote.estimated ? ' (estimado)' : ''}.
+                      </span>
+                    )}
+                  </p>
                 </div>
               )}
               <div className="pt-2">
@@ -551,9 +584,17 @@ export function CheckoutContent() {
 
             <button
               type="submit"
-              className="btn btn-primary min-h-14 w-full text-[17px] shadow-[var(--shadow-lift)]"
+              disabled={submitting}
+              aria-busy={submitting}
+              className="btn btn-primary min-h-14 w-full text-[17px] shadow-[var(--shadow-lift)] disabled:opacity-70"
             >
-              Confirmar pedido · {formatPrice(finalTotal)}
+              {submitting
+                ? paymentMethod === 'mercadopago'
+                  ? 'Te llevamos a Mercado Pago…'
+                  : 'Confirmando el pedido…'
+                : paymentMethod === 'mercadopago'
+                  ? `Pagar con Mercado Pago · ${formatPrice(finalTotal)}`
+                  : `Confirmar pedido · ${formatPrice(finalTotal)}`}
             </button>
           </form>
         </div>
@@ -600,10 +641,11 @@ function OrderConfirmation({ order }: { order: Order }) {
             </>
           ) : (
             <>
-              <p className="font-semibold">{SHIPPING_LABELS[order.shippingMethod]}</p>
+              <p className="font-semibold">{order.shippingService ?? SHIPPING_LABELS[order.shippingMethod]}</p>
               <p className="text-[var(--ink-muted)]">
                 {order.customer.address}, {order.customer.city} (CP {order.customer.postalCode}). Te escribimos al {order.customer.phone}{' '}
                 para coordinar.
+                {order.shippingMethod === 'moto_caba' && ' El costo de la moto se confirma cuando la pedimos y se paga aparte.'}
               </p>
             </>
           )}
@@ -612,6 +654,9 @@ function OrderConfirmation({ order }: { order: Order }) {
         {order.paymentMethod === 'transferencia' && (
           <div className="space-y-3 rounded-btn border border-[var(--brand-brass)] bg-[var(--brand-leather-wash)] p-5">
             <p className="font-display text-xl">Datos para transferir</p>
+            <p className="text-sm text-[var(--ink-secondary)]">
+              Te reservamos los productos 48 horas. Cuando transfieras, mandanos el comprobante por WhatsApp con el código del pedido.
+            </p>
             {STORE.transfer.isPlaceholder && (
               <p className="rounded-btn bg-white p-2.5 text-sm font-semibold text-[var(--amancay-wine)]">Datos de ejemplo de la demo. No transfieras a esta cuenta.</p>
             )}
@@ -646,15 +691,17 @@ function OrderConfirmation({ order }: { order: Order }) {
           </div>
         )}
 
-        {order.paymentMethod === 'mercadopago' && (
+        {order.paymentMethod === 'mercadopago' && order.paymentStatus !== 'aprobado' && (
           <p className="rounded-btn bg-[var(--bg-subtle)] p-4 text-[var(--ink-muted)]">
-            En la tienda final, acá se abre el pago de Mercado Pago. En esta demo no se cobra nada.
+            Todavía no recibimos la confirmación de Mercado Pago. Apenas llegue, el pedido pasa a &ldquo;Pago confirmado&rdquo; en
+            Mis pedidos.
           </p>
         )}
 
         {order.paymentMethod === 'mostrador' && (
           <p className="rounded-btn bg-[var(--bg-subtle)] p-4 text-[var(--ink-muted)]">
-            Pagás en efectivo o con tarjeta cuando retirás.
+            Pagás en efectivo o con tarjeta cuando lo retirás en {STORE.address}. Te lo guardamos 72 horas: si no podés venir, avisanos por
+            WhatsApp.
           </p>
         )}
 

@@ -3,14 +3,14 @@
 import { useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { Bookmark, MessageCircle, Share2, ShoppingBag, Store, Images } from 'lucide-react';
-import { useStore, priceRange } from '@/context/StoreContext';
+import { useStore, priceRange, useCategories } from '@/context/StoreContext';
 import { ProductCard } from '@/components/ProductCard';
 import { Reveal } from '@/components/Reveal';
 import { STORE, formatPrice, whatsappUrl, waText } from '@/lib/storeConfig';
-import { CATEGORIES } from '@/lib/categories';
 
 /* Guardados (Figma: "Guardados"). Sin cuenta: la lista vive en este navegador. */
 export function SavedContent() {
+  const CATEGORIES = useCategories();
   const { saved, isHydrated, addToCart, clearSaved } = useStore();
   const [notice, setNotice] = useState('');
   const [confirmClear, setConfirmClear] = useState(false);

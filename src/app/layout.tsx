@@ -8,6 +8,8 @@ import { FloatingWhatsApp } from '@/components/FloatingWhatsApp';
 import { CookieBanner } from '@/components/CookieBanner';
 import { MobileTabBar } from '@/components/MobileTabBar';
 import { SITE_URL } from '@/lib/storeConfig';
+import { CatalogProvider } from '@/context/StoreContext';
+import { getCatalog, getCategories } from '@/lib/server/catalog';
 
 // Tipografías del sistema visual (las del Figma "Amancay"), autohospedadas (licencia OFL en ./fonts).
 // next/font las precarga y genera un fallback con métricas ajustadas: sin salto de layout.
@@ -48,7 +50,12 @@ export const viewport: Viewport = {
   themeColor: '#fdf9f0',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // El catálogo sale de la base (en caché) y llega a todos los componentes del navegador por contexto.
+  const [catalog, categories] = await Promise.all([getCatalog(), getCategories()]);
+  // Un rubro oculto oculta también sus productos en la tienda.
+  const visible = new Set(categories.map((c) => c.id));
+  const products = catalog.map((p) => (visible.has(p.category) ? p : { ...p, active: false }));
   return (
     <html lang="es-AR" className={`${playfair.variable} ${jakarta.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-[var(--bg-page)] text-[var(--ink-primary)] font-sans selection:bg-[var(--brand-brass-soft)] selection:text-[var(--ink-primary)]">
@@ -58,6 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           Saltar al contenido
         </a>
+        <CatalogProvider products={products} categories={categories}>
         <Navbar />
         <main id="contenido" tabIndex={-1} className="flex-1 focus:outline-none">
           {children}
@@ -68,6 +76,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <MobileTabBar />
         </Suspense>
         <CookieBanner />
+        </CatalogProvider>
       </body>
     </html>
   );

@@ -1,4 +1,4 @@
-import { SHIPPING_RATES, STORE, formatPrice } from './storeConfig';
+import { STORE } from './storeConfig';
 
 /*
  * Textos legales de la tienda.
@@ -68,14 +68,14 @@ export const LEGAL_DOCS: Record<LegalSlug, LegalDoc> = {
       },
       {
         heading: 'Medios de pago',
-        list: ['Transferencia bancaria.', 'Mercado Pago.', 'Efectivo o tarjeta en el local, solo para pedidos con retiro.'],
+        list: ['Transferencia bancaria.', 'Mercado Pago.', 'Efectivo o tarjeta en el local (posnet), solo para pedidos con retiro.'],
       },
       {
         heading: 'Retiro y envíos',
         list: [
           `Retiro en ${STORE.address}: sin costo. Te avisamos cuando el pedido está listo.`,
-          `Moto en CABA: ${formatPrice(SHIPPING_RATES.moto_caba)}. Coordinamos día y franja horaria.`,
-          `Correo Argentino a todo el país: desde ${formatPrice(SHIPPING_RATES.correo_gba)}, con número de seguimiento.`,
+          'Moto en CABA: la pedimos por aplicación cuando el pedido está listo. El costo lo fija la aplicación en ese momento, te lo confirmamos antes de enviarla y se paga aparte.',
+          'Correo Argentino a todo el país: el costo se cotiza con Correo Argentino según el código postal y el tamaño del paquete, y se muestra antes de pagar. Incluye número de seguimiento.',
         ],
       },
       {

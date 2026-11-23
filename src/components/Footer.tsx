@@ -1,9 +1,9 @@
 'use client';
 
+import { useCategories } from '@/context/StoreContext';
 import Link from 'next/link';
 import { MapPin, Clock, MessageCircle, Mail, TrainFront, Map as MapIcon } from 'lucide-react';
 import { BrandSeal } from './BrandMark';
-import { CATEGORIES } from '@/lib/categories';
 import { STORE, whatsappUrl } from '@/lib/storeConfig';
 import { CABA_CONSUMIDOR_URL, LEGAL_DOCS, LEGAL_ORDER, VUF_URL, legalPath } from '@/lib/legal';
 import { openCookiePreferences } from '@/lib/consent';
@@ -12,6 +12,7 @@ const footerLink =
   'inline-flex min-h-10 items-center underline decoration-transparent underline-offset-4 transition-[text-decoration-color,color] duration-150 hover:text-[var(--ink-primary)] hover:decoration-[var(--brand-brass)]';
 
 export function Footer() {
+  const CATEGORIES = useCategories();
   return (
     <footer className="w-full border-t border-[var(--amancay-border)] bg-[var(--bg-sunken)] pb-10 pt-14 font-sans text-[var(--ink-primary)]">
       <div className="mx-auto max-w-[1320px] px-5 sm:px-8 lg:px-12">
