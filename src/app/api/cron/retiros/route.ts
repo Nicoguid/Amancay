@@ -8,7 +8,8 @@ import { CATALOG_TAG } from '@/lib/server/catalog';
 import type { PaymentMethod } from '@/lib/types';
 
 /*
- * Tarea programada (Vercel Cron, cada hora; ver vercel.json). Vercel la llama con
+ * Tarea programada (Vercel Cron; ver vercel.json). En el plan Hobby solo puede correr una vez por día
+ * (13:00 UTC = 10:00 en Argentina); con Pro conviene pasarla a cada hora ("0 * * * *"). Vercel la llama con
  * "Authorization: Bearer <CRON_SECRET>"; sin ese secreto responde 401.
  *
  * 1. Retiros en el local que nadie buscó a las 48 h: manda un mail de aviso (una sola vez).
