@@ -3,12 +3,11 @@
 import { useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight, Bike, Bookmark, Clock, MapPin, MessageCircle, Minus, Plus, ShoppingBag, Store, Trash2, Truck } from 'lucide-react';
-import { useStore } from '@/context/StoreContext';
+import { useStore, useCategories } from '@/context/StoreContext';
 import { ProductImage } from '@/components/ProductImage';
 import { ProductCard } from '@/components/ProductCard';
 import type { ShippingMethod } from '@/lib/types';
 import { SHIPPING_LABELS, SHIPPING_RATES, STORE, formatPrice, productPath, shippingCost, whatsappUrl } from '@/lib/storeConfig';
-import { CATEGORIES } from '@/lib/categories';
 import { DELIVERY_CHOICE_KEY, cartWhatsappMessage } from '@/lib/cartMessage';
 import { useTodayHours } from '@/lib/useStoreHours';
 
@@ -17,6 +16,7 @@ import { useTodayHours } from '@/lib/useStoreHours';
  * Los datos personales, el pago y los consentimientos se piden después, en /checkout.
  */
 export function CartContent() {
+  const CATEGORIES = useCategories();
   const { cart, cartTotal, cartCount, updateCartQuantity, removeFromCart, clearCart, toggleSaved, savedIds, saved, profile, isHydrated } = useStore();
   const today = useTodayHours();
   const [chosen, setChosen] = useState<ShippingMethod | null>(null);

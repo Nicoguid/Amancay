@@ -111,9 +111,10 @@ export function postalZone(cp: number): PostalZone {
 
 export function shippingCost(method: ShippingMethod, postalCode: string): number | null {
   if (method === 'pickup') return SHIPPING_RATES.pickup;
-  if (method === 'moto_caba') return SHIPPING_RATES.moto_caba;
   const cp = parsePostalCode(postalCode);
   if (cp === null) return null;
+  // La moto llega solo a CABA: con un CP de afuera no hay precio (el checkout pide elegir Correo).
+  if (method === 'moto_caba') return postalZone(cp) === 'caba' ? SHIPPING_RATES.moto_caba : null;
   return postalZone(cp) === 'interior' ? SHIPPING_RATES.correo_interior : SHIPPING_RATES.correo_gba;
 }
 
@@ -126,7 +127,7 @@ export const SHIPPING_LABELS: Record<ShippingMethod, string> = {
 export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   transferencia: 'Transferencia',
   mercadopago: 'Mercado Pago',
-  mostrador: 'Pago en el local',
+  mostrador: 'Efectivo al retirar',
 };
 
 /**

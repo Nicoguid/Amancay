@@ -1,4 +1,5 @@
-export type ProductCategory = 'mates' | 'bombillas' | 'perfumes' | 'desodorantes' | 'combos';
+/** Id del rubro (tabla `categories`): la dueña puede crear rubros nuevos desde el panel. */
+export type ProductCategory = string;
 
 export interface ProductVariant {
   id: string;

@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useAdmin } from './AdminDataContext';
 import type { Order, Product } from '@/lib/types';
 import { PAYMENT_LABELS, SHIPPING_LABELS, formatPrice } from '@/lib/storeConfig';
-import { CATEGORIES, categoryLabel } from '@/lib/categories';
+import { categoryLabel } from '@/lib/categories';
 
 /*
  * Resumen del panel. Todo se calcula en el navegador con los pedidos guardados.
@@ -256,7 +256,7 @@ function SalesChart({ buckets, groupLabel }: { buckets: { label: string; sales: 
 }
 
 export function MetricsTab({ lowStock, lowStockThreshold }: { lowStock: { key: string; name: string; sku: string; stock: number }[]; lowStockThreshold: number }) {
-  const { orders, products, isHydrated } = useAdmin();
+  const { orders, products, isHydrated, categories: CATEGORIES } = useAdmin();
   const [period, setPeriod] = useState<PeriodId>('30d');
   const [group, setGroup] = useState<GroupId>('dia');
 
@@ -325,7 +325,7 @@ export function MetricsTab({ lowStock, lowStockThreshold }: { lowStock: { key: s
     for (const o of paid)
       for (const i of o.items) {
         const p = byProduct.get(i.productId);
-        const cat = p ? categoryLabel(p.category) : 'Otros';
+        const cat = p ? categoryLabel(p.category, CATEGORIES) : 'Otros';
         rubro.set(cat, (rubro.get(cat) ?? 0) + i.totalPrice);
         const t = top.get(i.productId) ?? { name: i.productName, units: 0, sales: 0 };
         t.units += i.quantity;
@@ -345,7 +345,7 @@ export function MetricsTab({ lowStock, lowStockThreshold }: { lowStock: { key: s
 
     const hasSample = current.some((o) => o.isSample);
     return { cur, prev, series, byPayment, byShipping, byRubro, topProducts, byWeekday, hasSample, from, to };
-  }, [isHydrated, orders, products, period, group]);
+  }, [isHydrated, orders, products, period, group, CATEGORIES]);
 
   if (!data) return <p className="text-[var(--ink-muted)]">Cargando el resumen…</p>;
   const { cur, prev } = data;

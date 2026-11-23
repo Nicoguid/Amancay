@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ShoppingBag, Check, CreditCard, Truck, Store, MessageCircle, Minus, Plus, Bike, Map as MapIcon, MapPin } from 'lucide-react';
 import type { Product } from '@/lib/types';
-import { useStore, availableStock } from '@/context/StoreContext';
+import { useStore, availableStock, useCategoryInfo } from '@/context/StoreContext';
 import { ProductCard, fragranceNotes } from '@/components/ProductCard';
 import { ProductImage } from '@/components/ProductImage';
 import { SaveButton } from '@/components/SaveButton';
@@ -26,7 +26,6 @@ import {
   whatsappUrl,
   waText,
 } from '@/lib/storeConfig';
-import { categoryInfo, categoryLabel } from '@/lib/categories';
 import { legalPath } from '@/lib/legal';
 
 export function ProductDetail({ id }: { id: string }) {
@@ -46,6 +45,7 @@ export function ProductDetail({ id }: { id: string }) {
 const NOTE_KEYS = ['Notas de salida', 'Notas de corazón', 'Notas de fondo'];
 
 function ProductView({ product, products }: { product: Product; products: Product[] }) {
+  const rubro = useCategoryInfo(product.category);
   const { addToCart } = useStore();
   const promoActive = usePromoActive();
 
@@ -86,7 +86,7 @@ function ProductView({ product, products }: { product: Product; products: Produc
         <h1 className="mb-3 font-display text-3xl">{product.name}</h1>
         <p className="mb-6 text-[var(--ink-muted)]">Este producto no está disponible en este momento.</p>
         <Link href={`/catalogo?rubro=${product.category}`} className="link-brass">
-          Ver otros {categoryLabel(product.category).toLowerCase()}
+          Ver otros {rubro.label.toLowerCase()}
         </Link>
       </div>
     );
@@ -227,7 +227,7 @@ function ProductView({ product, products }: { product: Product; products: Produc
             <li aria-hidden="true">/</li>
             <li>
               <Link href={`/catalogo?rubro=${product.category}`} className="inline-flex min-h-11 items-center hover:text-[var(--ink-primary)] hover:underline">
-                {categoryLabel(product.category)}
+                {rubro.label}
               </Link>
             </li>
             <li aria-hidden="true" className="hidden sm:block">
@@ -338,7 +338,7 @@ function ProductView({ product, products }: { product: Product; products: Produc
             {variants.length > 1 && (
               <fieldset className="mt-6">
                 <legend className="mb-2.5 flex w-full items-center justify-between font-semibold">
-                  <span>Elegí {categoryInfo(product.category).variantNoun === 'tamaño' ? 'el tamaño' : 'una opción'}</span>
+                  <span>Elegí {rubro.variantNoun === 'tamaño' ? 'el tamaño' : 'una opción'}</span>
                   <span className="text-[13px] font-semibold text-[var(--ink-gold)]">{variants.length} opciones</span>
                 </legend>
                 <div className="space-y-2">
@@ -540,7 +540,7 @@ function ProductView({ product, products }: { product: Product; products: Produc
               <div>
                 <p className="eyebrow eyebrow-rule">Del mismo rubro</p>
                 <h2 id="related-title" className="mt-2 font-display text-[28px] tracking-[-0.02em] sm:text-[34px]">
-                  Más {categoryLabel(product.category).toLowerCase()}
+                  Más {rubro.label.toLowerCase()}
                 </h2>
               </div>
               <Link href={`/catalogo?rubro=${product.category}`} className="link-brass inline-flex min-h-11 items-center">
@@ -611,7 +611,7 @@ function ProductView({ product, products }: { product: Product; products: Produc
           </li>
           <li className="rounded-btn bg-[var(--bg-subtle)] p-4">
             <p className="font-semibold">En el local</p>
-            <p className="text-sm text-[var(--ink-muted)]">Efectivo o tarjeta al retirar en {STORE.address}.</p>
+            <p className="text-sm text-[var(--ink-muted)]">Efectivo al retirar en {STORE.address}.</p>
           </li>
         </ul>
       </Dialog>

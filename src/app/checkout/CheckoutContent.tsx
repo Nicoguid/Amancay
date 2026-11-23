@@ -295,8 +295,8 @@ export function CheckoutContent() {
     { id: 'mercadopago', title: 'Mercado Pago', detail: 'Tarjetas de crédito, débito o dinero en cuenta.' },
     {
       id: 'mostrador',
-      title: 'Pagar en el local',
-      detail: shippingMethod === 'pickup' ? 'Efectivo o tarjeta al retirar.' : 'Disponible solo con retiro en el local.',
+      title: 'Efectivo al retirar',
+      detail: shippingMethod === 'pickup' ? 'Pagás en el local cuando lo venís a buscar.' : 'Disponible solo con retiro en el local.',
       disabled: shippingMethod !== 'pickup',
     },
   ];
@@ -650,7 +650,7 @@ function OrderConfirmation({ order }: { order: Order }) {
 
         {order.paymentMethod === 'mostrador' && (
           <p className="rounded-btn bg-[var(--bg-subtle)] p-4 text-[var(--ink-muted)]">
-            Pagás en efectivo o con tarjeta cuando retirás.
+            Pagás en efectivo cuando lo retirás en {STORE.address}. Te avisamos por WhatsApp cuando esté listo.
           </p>
         )}
 

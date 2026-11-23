@@ -4,17 +4,17 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Search, ShoppingBag, MessageCircle, Menu, X, Bookmark, Package, UserRound } from 'lucide-react';
-import { useStore } from '@/context/StoreContext';
+import { useCategories, useStore } from '@/context/StoreContext';
 import { CartDrawer } from './CartDrawer';
 import { AnnouncementBar } from './MarqueeTicker';
 import { ProductImage } from './ProductImage';
 import { BrandMark } from './BrandMark';
 import { formatPrice, normalizeText, productPath, whatsappUrl } from '@/lib/storeConfig';
-import { CATEGORIES } from '@/lib/categories';
+import type { CategoryInfo } from '@/lib/categories';
 
-const NAV_LINKS = [
+const navLinks = (categories: CategoryInfo[]) => [
   { href: '/', label: 'Inicio' },
-  ...CATEGORIES.map((c) => ({ href: `/catalogo?rubro=${c.id}`, label: c.label })),
+  ...categories.map((c) => ({ href: `/catalogo?rubro=${c.id}`, label: c.label })),
   { href: '/#bazar', label: 'Bazar' },
   { href: '/catalogo', label: 'Todo el catálogo' },
   { href: '/#el-local', label: 'El local' },
@@ -31,6 +31,7 @@ const SEARCH_PLACEHOLDER = 'Buscar un mate, un perfume, una marca…';
 export function Navbar() {
   const router = useRouter();
   const { cartCount, products, isHydrated, savedIds } = useStore();
+  const NAV_LINKS = navLinks(useCategories());
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [panel, setPanel] = useState<'menu' | 'search' | null>(null);
   const [searchQuery, setSearchQuery] = useState('');

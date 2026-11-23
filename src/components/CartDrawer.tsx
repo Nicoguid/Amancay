@@ -2,11 +2,10 @@
 
 import Link from 'next/link';
 import { ShoppingBag, Plus, Minus, Trash2, ArrowRight, MessageCircle } from 'lucide-react';
-import { useStore } from '@/context/StoreContext';
+import { useStore, useCategories } from '@/context/StoreContext';
 import { Dialog } from './Dialog';
 import { ProductImage } from './ProductImage';
 import { STORE, formatPrice, whatsappUrl } from '@/lib/storeConfig';
-import { CATEGORIES } from '@/lib/categories';
 import { cartWhatsappMessage } from '@/lib/cartMessage';
 
 interface CartDrawerProps {
@@ -15,6 +14,7 @@ interface CartDrawerProps {
 }
 
 export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
+  const CATEGORIES = useCategories();
   const { cart, removeFromCart, updateCartQuantity, cartTotal, cartCount } = useStore();
 
   return (

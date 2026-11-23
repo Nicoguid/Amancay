@@ -1,16 +1,14 @@
 'use server';
 
 import { randomBytes } from 'node:crypto';
-import { cookies } from 'next/headers';
 import { updateTag } from 'next/cache';
 import type { OrderStatus, Product, ProductCategory } from '@/lib/types';
-import { CATEGORIES } from '@/lib/categories';
 import { MAX_PRICE } from '@/lib/csv';
 import { applyPercentage, matchesMassFilter, type CsvProductRow, type MassFilter } from '@/lib/productUtils';
 import { safeImageUrl, slugify } from '@/lib/storeConfig';
-import { SESSION_COOKIE, isValidSessionToken } from '@/lib/adminSession';
+import { fail, guard, ok, type ActionResult } from '@/lib/server/adminGuard';
 import { CATALOG_TAG, toProduct } from '@/lib/server/catalog';
-import { db, dbConfigured } from '@/lib/server/supabase';
+import { db } from '@/lib/server/supabase';
 import { mpConfigured, refundMpOrder } from '@/lib/server/mercadopago';
 import { applyMpState, orderEvent } from '@/lib/server/orders';
 
@@ -21,30 +19,12 @@ import { applyMpState, orderEvent } from '@/lib/server/orders';
  * 3. escribe en la base y refresca el catálogo en caché.
  */
 
-export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
-
-const ok = <T,>(data: T): ActionResult<T> => ({ ok: true, data });
-const fail = (error: string): ActionResult<never> => ({ ok: false, error });
-
-async function requireAdmin(): Promise<void> {
-  const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  if (!isValidSessionToken(token)) throw new Error('Sesión vencida. Volvé a ingresar al panel.');
-  if (!dbConfigured()) throw new Error('La base de datos no está configurada.');
-}
-
-async function guard<T>(fn: () => Promise<ActionResult<T>>): Promise<ActionResult<T>> {
-  try {
-    await requireAdmin();
-    return await fn();
-  } catch (e) {
-    console.error('[panel]', e);
-    return fail(e instanceof Error && e.message.startsWith('Sesión') ? e.message : 'No se pudo guardar. Probá de nuevo.');
-  }
-}
-
 const validPrice = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0 && n <= MAX_PRICE;
 const validStock = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 0 && n <= 100_000;
-const CATEGORY_IDS = CATEGORIES.map((c) => c.id) as string[];
+async function categoryExists(id: string): Promise<boolean> {
+  const { data } = await db().from('categories').select('id').eq('id', String(id ?? '')).maybeSingle();
+  return !!data;
+}
 
 /** Catálogo leído directo de la base (sin caché): las acciones calculan sobre datos frescos. */
 async function freshCatalog(): Promise<Product[]> {
@@ -118,7 +98,7 @@ export async function createProductAction(input: NewProductInput): Promise<Actio
   return guard(async () => {
     const name = String(input.name ?? '').trim().slice(0, 200);
     if (name.length < 3) return fail('Escribí el nombre del producto.');
-    if (!CATEGORY_IDS.includes(input.category)) return fail('Rubro no válido.');
+    if (!(await categoryExists(input.category))) return fail('Rubro no válido.');
     if (!validPrice(input.price)) return fail('Precio no válido.');
     if (!validStock(input.stock)) return fail('Stock no válido.');
     const image = input.imageUrl ? safeImageUrl(String(input.imageUrl)) : null;
@@ -214,7 +194,7 @@ export async function importCsvAction(rows: CsvProductRow[]): Promise<ActionResu
       if (!row || typeof row !== 'object') continue;
       if (row.price !== undefined && !validPrice(row.price)) continue;
       if (row.stock !== undefined && !validStock(row.stock)) continue;
-      if (row.category !== undefined && !CATEGORY_IDS.includes(row.category)) continue;
+      if (row.category !== undefined && !(await categoryExists(row.category))) continue;
       const current = catalog.find((p) => (row.sku && p.sku === row.sku) || (row.id && p.id === row.id));
       if (current) {
         const patch: { name?: string; brand?: string; category?: string; price?: number; stock?: number } = {};

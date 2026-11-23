@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Download, Upload, Plus, Undo2, LogOut, MapPin, Store, ClipboardList, Boxes, TriangleAlert } from 'lucide-react';
 import { logout } from './actions';
@@ -8,23 +8,22 @@ import { MetricsTab } from './MetricsTab';
 import { applyPercentage, matchesMassFilter, type MassFilter, type CsvProductRow } from '@/lib/productUtils';
 import { useAdmin } from './AdminDataContext';
 import type { PriceSnapshot } from './dataActions';
-import { Dialog } from '@/components/Dialog';
-import type { OrderStatus, Product, ProductCategory } from '@/lib/types';
-import { PAYMENT_LABELS, SHIPPING_LABELS, STORE, formatPrice, normalizeText, safeImageUrl } from '@/lib/storeConfig';
+import type { OrderStatus, Product } from '@/lib/types';
+import { PAYMENT_LABELS, SHIPPING_LABELS, STORE, formatPrice, normalizeText } from '@/lib/storeConfig';
 import { useTodayHours } from '@/lib/useStoreHours';
 import { MAX_PRICE, headerIndex, parseArNumber, parseArsPrice, parseCsv, toCsv } from '@/lib/csv';
-import { CATEGORIES as RUBROS } from '@/lib/categories';
+import { ProductImage } from '@/components/ProductImage';
+import { CategoriesTab, ProductEditor } from './CatalogEditor';
 
-type Tab = 'prices' | 'products' | 'orders' | 'metrics';
+type Tab = 'prices' | 'products' | 'categories' | 'orders' | 'metrics';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'prices', label: 'Precios' },
   { id: 'products', label: 'Productos y stock' },
+  { id: 'categories', label: 'Rubros' },
   { id: 'orders', label: 'Pedidos' },
   { id: 'metrics', label: 'Resumen' },
 ];
-
-const CATEGORIES: { id: ProductCategory; label: string }[] = RUBROS.map(({ id, label }) => ({ id, label }));
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   pendiente: 'Pendiente de pago',
@@ -198,6 +197,8 @@ export function AdminPanel() {
           <PricesTab products={products} />
         ) : activeTab === 'products' ? (
           <ProductsTab products={products} />
+        ) : activeTab === 'categories' ? (
+          <CategoriesTab />
         ) : activeTab === 'orders' ? (
           <OrdersTab />
         ) : (
@@ -211,7 +212,7 @@ export function AdminPanel() {
 // ---------------- Precios ----------------
 
 function PricesTab({ products }: { products: Product[] }) {
-  const { applyMassPercentageIncrease, restorePrices, importProductsFromCsvData } = useAdmin();
+  const { applyMassPercentageIncrease, restorePrices, importProductsFromCsvData, categories: CATEGORIES } = useAdmin();
   const [busy, setBusy] = useState(false);
   const [filterType, setFilterType] = useState<MassFilter>('category');
   const [filterValue, setFilterValue] = useState<string>('mates');
@@ -492,54 +493,18 @@ function PricesTab({ products }: { products: Product[] }) {
 // ---------------- Productos ----------------
 
 function ProductsTab({ products }: { products: Product[] }) {
-  const { saveProduct, toggleProductActive } = useAdmin();
-  const [saving, setSaving] = useState(false);
+  const { toggleProductActive, categories } = useAdmin();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editPrice, setEditPrice] = useState('');
-  const [editStock, setEditStock] = useState<Record<string, string>>({});
-  const [editError, setEditError] = useState<string | null>(null);
-  const [isNewOpen, setIsNewOpen] = useState(false);
+  // null = cerrado; { product: null } = nuevo; { product } = editar
+  const [editor, setEditor] = useState<{ product: Product | null } | null>(null);
 
   const list = products.filter((p) => {
     if (category !== 'all' && p.category !== category) return false;
     const q = normalizeText(search);
     return !q || normalizeText(`${p.name} ${p.brand} ${p.sku}`).includes(q);
   });
-
-  const startEdit = (p: Product) => {
-    setEditingId(p.id);
-    setEditError(null);
-    setEditPrice(String(p.price));
-    setEditStock(
-      p.variants?.length ? Object.fromEntries(p.variants.map((v) => [v.id, String(v.stock)])) : { _: String(p.stock) }
-    );
-  };
-
-  const saveEdit = async (p: Product) => {
-    if (saving) return;
-    const price = parseArsPrice(editPrice);
-    if (price === null) {
-      setEditError(`El precio tiene que ser un número mayor a 0 y hasta ${formatPrice(MAX_PRICE)}.`);
-      return;
-    }
-    const stocks = Object.fromEntries(Object.entries(editStock).map(([k, v]) => [k, parseArNumber(v)]));
-    if (Object.values(stocks).some((s) => s === null || s < 0 || !Number.isInteger(s))) {
-      setEditError('El stock tiene que ser un número entero, 0 o más.');
-      return;
-    }
-    setSaving(true);
-    const res = p.variants?.length
-      ? await saveProduct(p.id, {
-          price,
-          variantStocks: Object.fromEntries(p.variants.map((v) => [v.id, stocks[v.id] ?? v.stock])),
-        })
-      : await saveProduct(p.id, { price, stock: stocks._ ?? p.stock });
-    setSaving(false);
-    if (!res.ok) return setEditError(res.error);
-    setEditingId(null);
-  };
+  const rubro = (id: string) => categories.find((c) => c.id === id)?.label ?? id;
 
   return (
     <>
@@ -556,7 +521,7 @@ function ProductsTab({ products }: { products: Product[] }) {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Nombre, marca o SKU…"
+              placeholder="Nombre, marca o código…"
               className={field}
             />
           </div>
@@ -566,7 +531,7 @@ function ProductsTab({ products }: { products: Product[] }) {
             </label>
             <select id="prod-cat" value={category} onChange={(e) => setCategory(e.target.value)} className={field}>
               <option value="all">Todos</option>
-              {CATEGORIES.map((c) => (
+              {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.label}
                 </option>
@@ -574,266 +539,67 @@ function ProductsTab({ products }: { products: Product[] }) {
             </select>
           </div>
         </div>
-        <button type="button" onClick={() => setIsNewOpen(true)} aria-haspopup="dialog" className={primaryBtn}>
+        <button type="button" onClick={() => setEditor({ product: null })} aria-haspopup="dialog" className={primaryBtn}>
           <Plus className="h-4 w-4" aria-hidden="true" />
           Nuevo producto
         </button>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[var(--amancay-border)] bg-white">
-        <table className="w-full min-w-[760px] text-left text-sm">
-          <caption className="sr-only">Productos: {list.length}</caption>
-          <thead className="bg-[var(--bg-subtle)]">
-            <tr>
-              <th scope="col" className="px-4 py-3">Producto</th>
-              <th scope="col" className="px-4 py-3 text-right">Precio base</th>
-              <th scope="col" className="px-4 py-3">Stock</th>
-              <th scope="col" className="px-4 py-3">Estado</th>
-              <th scope="col" className="px-4 py-3 text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[var(--bg-subtle)]">
-            {list.map((p) => {
-              const editing = editingId === p.id;
-              return (
-                <tr key={p.id} className={p.active ? '' : 'bg-[var(--bg-page)] text-[var(--ink-muted)]'}>
-                  <td className="px-4 py-3">
-                    <span className="font-semibold">{p.name}</span>
-                    <span className="block text-xs text-[var(--ink-muted)]">
-                      {p.sku} · {p.brand}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums">
-                    {editing ? (
-                      <>
-                        <label htmlFor={`price-${p.id}`} className="sr-only">
-                          Precio de {p.name}
-                        </label>
-                        <input
-                          id={`price-${p.id}`}
-              name="price"
-              autoComplete="off"
-                          type="text"
-                          inputMode="numeric"
-                          value={editPrice}
-                          onChange={(e) => setEditPrice(e.target.value)}
-                          className="w-28 rounded-md border border-[var(--amancay-border)] px-2 py-1.5 text-right"
-                        />
-                        {p.variants?.some((v) => v.priceModifier) && (
-                          <span className="mt-1 block text-xs text-[var(--ink-muted)]">Las variantes mantienen su diferencia.</span>
-                        )}
-                      </>
-                    ) : (
-                      formatPrice(p.price)
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {p.variants?.length ? (
-                      <ul className="space-y-1">
-                        {p.variants.map((v) => (
-                          <li key={v.id} className="flex items-center justify-between gap-3">
-                            <span className="truncate text-xs">{v.name}</span>
-                            {editing ? (
-                              <>
-                                <label htmlFor={`stock-${p.id}-${v.id}`} className="sr-only">
-                                  Stock de {v.name}
-                                </label>
-                                <input
-                                  id={`stock-${p.id}-${v.id}`}
-              name="stock"
-              autoComplete="off"
-                                  type="text"
-                                  inputMode="numeric"
-                                  value={editStock[v.id] ?? ''}
-                                  onChange={(e) => setEditStock((s) => ({ ...s, [v.id]: e.target.value }))}
-                                  className="w-16 rounded-md border border-[var(--amancay-border)] px-2 py-1 text-right"
-                                />
-                              </>
-                            ) : (
-                              <span className={`tabular-nums ${v.stock <= LOW_STOCK ? 'font-semibold text-[var(--amancay-wine)]' : ''}`}>
-                                {v.stock}
-                              </span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : editing ? (
-                      <>
-                        <label htmlFor={`stock-${p.id}`} className="sr-only">
-                          Stock de {p.name}
-                        </label>
-                        <input
-                          id={`stock-${p.id}`}
-              name="stock"
-              autoComplete="off"
-                          type="text"
-                          inputMode="numeric"
-                          value={editStock._ ?? ''}
-                          onChange={(e) => setEditStock({ _: e.target.value })}
-                          className="w-16 rounded-md border border-[var(--amancay-border)] px-2 py-1 text-right"
-                        />
-                      </>
-                    ) : (
-                      <span className={`tabular-nums ${p.stock <= LOW_STOCK ? 'font-semibold text-[var(--amancay-wine)]' : ''}`}>{p.stock}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <button
-                      type="button"
-                      onClick={() => toggleProductActive(p.id)}
-                      aria-pressed={p.active}
-                      className={`min-h-9 rounded-btn px-3 text-xs font-semibold ${
-                        p.active ? 'bg-[var(--amancay-emerald)] text-white' : 'border border-[var(--amancay-border)] bg-white text-[var(--ink-muted)]'
-                      }`}
-                    >
-                      {p.active ? 'Publicado' : 'Oculto'}
-                      <span className="sr-only">: {p.name}</span>
-                    </button>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {editing ? (
-                      <div className="flex flex-col items-end gap-2">
-                        <div className="flex gap-2">
-                          <button type="button" onClick={() => setEditingId(null)} className={secondaryBtn}>
-                            Cancelar
-                          </button>
-                          <button type="button" onClick={() => saveEdit(p)} disabled={saving} aria-busy={saving} className={primaryBtn}>
-                            {saving ? 'Guardando…' : 'Guardar'}
-                          </button>
-                        </div>
-                        {editError && (
-                          <p role="alert" className="text-xs text-[var(--amancay-wine)]">
-                            {editError}
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <button type="button" onClick={() => startEdit(p)} className={secondaryBtn}>
-                        Editar<span className="sr-only"> {p.name}</span>
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <p className="text-sm text-[var(--ink-muted)]">
+        Tocá un producto para cambiar fotos, precio, stock, descripción o borrarlo. {list.length} {list.length === 1 ? 'producto' : 'productos'}.
+      </p>
 
-      <NewProductDialog open={isNewOpen} onClose={() => setIsNewOpen(false)} />
+      <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {list.map((p) => {
+          const lines = p.variants?.length ? p.variants : null;
+          const low = lines ? lines.some((v) => v.stock <= LOW_STOCK) : p.stock <= LOW_STOCK;
+          return (
+            <li key={p.id} className={`card-rest flex gap-3 rounded-lg bg-white p-3 ${p.active ? '' : 'opacity-70'}`}>
+              <button
+                type="button"
+                onClick={() => setEditor({ product: p })}
+                className="flex min-w-0 flex-1 gap-3 text-left"
+                aria-haspopup="dialog"
+              >
+                <span className="h-20 w-20 shrink-0 overflow-hidden rounded-md bg-[var(--bg-sunken)]">
+                  <ProductImage src={p.images[0]} alt="" width={80} height={80} className="photo-on-linen h-full w-full object-contain p-1" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-semibold leading-snug">{p.name}</span>
+                  <span className="block text-xs text-[var(--ink-muted)]">
+                    {rubro(p.category)} · {p.brand}
+                  </span>
+                  <span className="mt-1 block text-sm font-semibold tabular-nums">
+                    {lines && lines.length > 1 ? `Desde ${formatPrice(Math.min(...lines.map((v) => v.price)))}` : formatPrice(p.price)}
+                  </span>
+                  <span className={`block text-xs tabular-nums ${low ? 'font-semibold text-[var(--amancay-wine)]' : 'text-[var(--ink-muted)]'}`}>
+                    Stock: {lines ? lines.map((v) => `${v.name} ${v.stock}`).join(' · ') : p.stock}
+                  </span>
+                </span>
+              </button>
+              <div className="flex shrink-0 flex-col items-end justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => void toggleProductActive(p.id)}
+                  aria-pressed={p.active}
+                  className={`min-h-9 rounded-btn px-3 text-xs font-semibold ${
+                    p.active ? 'bg-[var(--amancay-emerald)] text-white' : 'border border-[var(--amancay-border)] bg-white text-[var(--ink-muted)]'
+                  }`}
+                >
+                  {p.active ? 'Publicado' : 'Oculto'}
+                  <span className="sr-only">: {p.name}</span>
+                </button>
+                <button type="button" onClick={() => setEditor({ product: p })} className={secondaryBtn}>
+                  Editar<span className="sr-only"> {p.name}</span>
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      {editor && <ProductEditor key={editor.product?.id ?? 'nuevo'} product={editor.product} open onClose={() => setEditor(null)} />}
     </>
-  );
-}
-
-function NewProductDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { addProduct } = useAdmin();
-  const [saving, setSaving] = useState(false);
-  const ids = useId();
-  const [data, setData] = useState({ name: '', category: 'mates' as ProductCategory, brand: '', description: '', price: '', stock: '', sku: '', imageUrl: '' });
-  const [error, setError] = useState<string | null>(null);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (saving) return;
-    const price = parseArsPrice(data.price);
-    const stock = parseArNumber(data.stock || '0');
-    if (data.name.trim().length < 3) return setError('Escribí el nombre del producto.');
-    if (price === null) return setError(`El precio tiene que ser un número mayor a 0 y hasta ${formatPrice(MAX_PRICE)}.`);
-    if (stock === null || stock < 0 || !Number.isInteger(stock)) return setError('El stock tiene que ser un número entero, 0 o más.');
-    const image = safeImageUrl(data.imageUrl);
-    if (data.imageUrl.trim() && !image) return setError('La foto tiene que ser un link que empiece con https://.');
-    setSaving(true);
-    const res = await addProduct({
-      name: data.name.trim(),
-      category: data.category,
-      brand: data.brand.trim(),
-      description: data.description.trim(),
-      price,
-      stock,
-      sku: data.sku.trim(),
-      imageUrl: image ?? '',
-    });
-    setSaving(false);
-    if (!res.ok) return setError(res.error);
-    setData({ name: '', category: 'mates', brand: '', description: '', price: '', stock: '', sku: '', imageUrl: '' });
-    setError(null);
-    onClose();
-  };
-
-  const input = (key: keyof typeof data, label: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
-    <div>
-      <label htmlFor={`${ids}-${key}`} className="mb-1 block text-sm font-semibold">
-        {label}
-      </label>
-      <input
-        id={`${ids}-${key}`}
-        name={key}
-        autoComplete="off"
-        value={data[key]}
-        onChange={(e) => setData((d) => ({ ...d, [key]: e.target.value }))}
-        className={field}
-        {...props}
-      />
-    </div>
-  );
-
-  return (
-    <Dialog open={open} onClose={onClose} title="Nuevo producto">
-      <form onSubmit={submit} noValidate className="space-y-4">
-        {input('name', 'Nombre', { required: true })}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label htmlFor={`${ids}-category`} className="mb-1 block text-sm font-semibold">
-              Rubro
-            </label>
-            <select
-              id={`${ids}-category`}
-              value={data.category}
-              onChange={(e) => setData((d) => ({ ...d, category: e.target.value as ProductCategory }))}
-              className={field}
-            >
-              {CATEGORIES.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          {input('brand', 'Marca')}
-        </div>
-        <div className="grid grid-cols-3 gap-3">
-          {input('price', 'Precio ($)', { inputMode: 'numeric' })}
-          {input('stock', 'Stock', { inputMode: 'numeric' })}
-          {input('sku', 'SKU', { spellCheck: false })}
-        </div>
-        {input('imageUrl', 'URL de la foto', { type: 'url', inputMode: 'url', spellCheck: false, placeholder: 'https://…' })}
-        <div>
-          <label htmlFor={`${ids}-description`} className="mb-1 block text-sm font-semibold">
-            Descripción
-          </label>
-          <textarea
-            id={`${ids}-description`}
-            name="description"
-            autoComplete="off"
-            rows={3}
-            value={data.description}
-            onChange={(e) => setData((d) => ({ ...d, description: e.target.value }))}
-            className={field}
-          />
-        </div>
-        <p role="alert" className="text-sm text-[var(--amancay-wine)]">
-          {error}
-        </p>
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={secondaryBtn}>
-            Cancelar
-          </button>
-          <button type="submit" disabled={saving} aria-busy={saving} className={primaryBtn}>
-            {saving ? 'Publicando…' : 'Publicar'}
-          </button>
-        </div>
-      </form>
-    </Dialog>
   );
 }
 

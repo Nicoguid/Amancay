@@ -27,6 +27,10 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   poweredByHeader: false,
+  experimental: {
+    // Fotos del panel: el navegador ya las achica antes de subir; esto deja margen para el formulario.
+    serverActions: { bodySizeLimit: '7mb' },
+  },
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },

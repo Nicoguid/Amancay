@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
-import { getProductBySlugOrId } from '@/lib/server/catalog';
+import { getCategories, getProductBySlugOrId } from '@/lib/server/catalog';
 import { productPath } from '@/lib/storeConfig';
 import { categoryLabel } from '@/lib/categories';
 import { ProductDetail } from './ProductDetail';
@@ -12,7 +12,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const { id } = await params;
   const product = await getProductBySlugOrId(id);
   if (!product) return { title: 'Producto', robots: { index: false } };
-  const rubro = categoryLabel(product.category);
+  const rubro = categoryLabel(product.category, await getCategories());
   // Meta descripción: qué es + dónde se consigue (150-160 caracteres).
   const base = (product.shortDescription ?? product.description).replace(/\.$/, '');
   const description = `${base}. ${rubro} en Perfumería Amancay, Av. Corrientes 3666 (Almagro): retiro sin costo o envío.`;
@@ -26,11 +26,11 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
 async function ProductResolver({ params }: { params: Params }) {
   const { id } = await params;
-  const product = await getProductBySlugOrId(id);
+  const [product, categories] = await Promise.all([getProductBySlugOrId(id), getCategories()]);
   return (
     <>
       {product && (
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(productJsonLd(product)) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(productJsonLd(product, categories)) }} />
       )}
       <ProductDetail id={id} />
     </>

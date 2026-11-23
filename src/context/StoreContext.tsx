@@ -17,6 +17,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from 'react';
 import type { Product, ProductVariant, ShippingMethod } from '@/lib/types';
+import { DEFAULT_CATEGORIES, categoryInfo, type CategoryInfo } from '@/lib/categories';
 import { availableStock } from '@/lib/productUtils';
 import { track } from '@/lib/consent';
 
@@ -94,15 +95,38 @@ const cartLineId = (productId: string, variantId?: string) => (variantId ? `${pr
 // ---------- Catálogo (del servidor) ----------
 
 const CatalogContext = createContext<Product[]>([]);
+const CategoriesContext = createContext<CategoryInfo[]>(DEFAULT_CATEGORIES);
 
 /** Último catálogo recibido, para las acciones que corren fuera de React (ej. cambiar cantidades). */
 let catalogRef: Product[] = [];
 
-export function CatalogProvider({ products, children }: { products: Product[]; children: React.ReactNode }) {
+export function CatalogProvider({
+  products,
+  categories,
+  children,
+}: {
+  products: Product[];
+  categories: CategoryInfo[];
+  children: React.ReactNode;
+}) {
   useEffect(() => {
     catalogRef = products;
   }, [products]);
-  return <CatalogContext.Provider value={products}>{children}</CatalogContext.Provider>;
+  return (
+    <CatalogContext.Provider value={products}>
+      <CategoriesContext.Provider value={categories}>{children}</CategoriesContext.Provider>
+    </CatalogContext.Provider>
+  );
+}
+
+/** Rubros visibles en la tienda, en el orden que eligió la dueña. */
+export function useCategories(): CategoryInfo[] {
+  return useContext(CategoriesContext);
+}
+
+/** Datos de un rubro (nombre, qué se elige en las variantes). */
+export function useCategoryInfo(id: string): CategoryInfo {
+  return categoryInfo(id, useContext(CategoriesContext));
 }
 
 // ---------- Persistencia ----------

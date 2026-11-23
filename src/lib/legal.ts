@@ -68,7 +68,7 @@ export const LEGAL_DOCS: Record<LegalSlug, LegalDoc> = {
       },
       {
         heading: 'Medios de pago',
-        list: ['Transferencia bancaria.', 'Mercado Pago.', 'Efectivo o tarjeta en el local, solo para pedidos con retiro.'],
+        list: ['Transferencia bancaria.', 'Mercado Pago.', 'Efectivo en el local, solo para pedidos con retiro.'],
       },
       {
         heading: 'Retiro y envíos',

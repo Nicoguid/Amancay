@@ -42,7 +42,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   if (!input || typeof input !== 'object') return { ok: false, error: GENERIC };
   if (!SHIPPING.includes(input.shippingMethod) || !PAYMENTS.includes(input.paymentMethod)) return { ok: false, error: GENERIC };
   if (input.paymentMethod === 'mostrador' && input.shippingMethod !== 'pickup') {
-    return { ok: false, error: 'Pagar en el local solo se puede si retirás en el local.' };
+    return { ok: false, error: 'El pago en efectivo es solo para retiro en el local.' };
   }
   if (input.paymentMethod === 'mercadopago' && !mpConfigured()) {
     return { ok: false, error: 'Mercado Pago no está disponible en este momento. Elegí transferencia o escribinos.' };

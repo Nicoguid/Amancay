@@ -6,7 +6,7 @@ import { connection } from 'next/server';
 import { AdminPanel } from './AdminPanel';
 import { AdminDataProvider } from './AdminDataContext';
 import { SESSION_COOKIE, isValidSessionToken } from '@/lib/adminSession';
-import { getCatalog } from '@/lib/server/catalog';
+import { getAllCategories, getCatalog } from '@/lib/server/catalog';
 import { db, dbConfigured } from '@/lib/server/supabase';
 import { toOrder, type OrderWithItems } from '@/lib/server/orders';
 import { INITIAL_ORDERS } from '@/lib/mockData';
@@ -53,9 +53,9 @@ async function SessionGate() {
   await connection(); // la verificación compara con la hora actual: siempre en el momento del pedido
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!isValidSessionToken(token)) redirect('/admin/ingresar');
-  const [products, orders, withdrawals] = await Promise.all([getCatalog(), loadOrders(), loadWithdrawals()]);
+  const [products, orders, withdrawals, categories] = await Promise.all([getCatalog(), loadOrders(), loadWithdrawals(), getAllCategories()]);
   return (
-    <AdminDataProvider products={products} orders={orders} withdrawals={withdrawals}>
+    <AdminDataProvider products={products} orders={orders} withdrawals={withdrawals} categories={categories}>
       <AdminPanel />
     </AdminDataProvider>
   );

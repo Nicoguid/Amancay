@@ -1,4 +1,5 @@
 import type { ShippingMethod } from './types';
+import { parsePostalCode, postalZone } from './storeConfig';
 
 /*
  * Validación del formulario del checkout. La usan el navegador (para mostrar los errores al toque)
@@ -30,6 +31,8 @@ export function validateCheckout(data: CheckoutForm, shipping: ShippingMethod): 
   if (shipping !== 'pickup') {
     if (data.address.trim().length < 5) errors.address = 'Escribí calle, número, piso y departamento.';
     if (!/\d{4}/.test(data.postalCode)) errors.postalCode = 'Escribí el código postal (4 números).';
+    else if (shipping === 'moto_caba' && postalZone(parsePostalCode(data.postalCode)!) !== 'caba')
+      errors.postalCode = 'La moto llega solo a CABA (CP 1000 a 1499). Para otra zona elegí Correo Argentino.';
     if (!data.city.trim()) errors.city = 'Escribí la localidad o barrio.';
   }
   return errors;

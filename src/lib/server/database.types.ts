@@ -131,6 +131,18 @@ type PaymentEventRow = {
   topic: string;
 };
 
+type CategoryRow = {
+  id: string;
+  label: string;
+  blurb: string;
+  image: string | null;
+  variant_noun: string;
+  position: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 type LoginAttemptRow = {
   failures: number;
   key: string;
@@ -168,6 +180,7 @@ export type Database = {
   public: {
     Tables: {
       admin_login_attempts: Table<LoginAttemptRow, 'key'>;
+      categories: Table<CategoryRow, 'id' | 'label'>;
       consents: Table<ConsentRow, 'decision' | 'doc' | 'method' | 'page' | 'version', [Fk<'consents_order_id_fkey', 'order_id', 'orders'>]>;
       order_events: Table<OrderEventRow, 'order_id' | 'type', [Fk<'order_events_order_id_fkey', 'order_id', 'orders'>]>;
       order_items: Table<
@@ -182,7 +195,7 @@ export type Database = {
       orders: Table<OrderRow, 'customer_email' | 'customer_name' | 'customer_phone' | 'payment_method' | 'shipping_method' | 'subtotal' | 'total'>;
       payment_events: Table<PaymentEventRow, 'payload' | 'request_id' | 'resource_id' | 'topic', [Fk<'payment_events_order_id_fkey', 'order_id', 'orders'>]>;
       product_variants: Table<VariantRow, 'id' | 'name' | 'price' | 'product_id' | 'sku', [Fk<'product_variants_product_id_fkey', 'product_id', 'products'>]>;
-      products: Table<ProductRow, 'category' | 'id' | 'name' | 'price' | 'sku' | 'slug'>;
+      products: Table<ProductRow, 'category' | 'id' | 'name' | 'price' | 'sku' | 'slug', [Fk<'products_category_fkey', 'category', 'categories'>]>;
       withdrawal_requests: Table<WithdrawalRow, 'email' | 'full_name' | 'order_number', [Fk<'withdrawal_requests_order_id_fkey', 'order_id', 'orders'>]>;
     };
     Views: { [_ in never]: never };
@@ -221,3 +234,4 @@ export type DbProduct = ProductRow;
 export type DbVariant = VariantRow;
 export type DbConsent = ConsentRow;
 export type DbWithdrawal = WithdrawalRow;
+export type DbCategory = CategoryRow;

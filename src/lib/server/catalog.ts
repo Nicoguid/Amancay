@@ -3,7 +3,8 @@ import { cacheLife, cacheTag } from 'next/cache';
 import type { Product, ProductCategory, ProductVariant } from '@/lib/types';
 import { normalizeProduct } from '@/lib/productUtils';
 import { INITIAL_PRODUCTS } from '@/lib/mockData';
-import type { DbProduct, DbVariant } from './database.types';
+import type { DbCategory, DbProduct, DbVariant } from './database.types';
+import { DEFAULT_CATEGORIES, type CategoryInfo } from '@/lib/categories';
 import { db, dbConfigured } from './supabase';
 
 /** Etiqueta de caché del catálogo: el panel la invalida cada vez que cambia un producto. */
@@ -72,6 +73,34 @@ export async function getCatalog(): Promise<Product[]> {
   cacheTag(CATALOG_TAG);
   cacheLife('minutes');
   return fetchCatalog();
+}
+
+export function toCategory(row: DbCategory): CategoryInfo {
+  return {
+    id: row.id,
+    label: row.label,
+    blurb: row.blurb,
+    image: row.image ?? '',
+    variantNoun: row.variant_noun,
+    active: row.active,
+    position: row.position,
+  };
+}
+
+/** Todos los rubros (activos y ocultos), en el orden que eligió la dueña. La tienda filtra los ocultos. */
+export async function getAllCategories(): Promise<CategoryInfo[]> {
+  'use cache';
+  cacheTag(CATALOG_TAG);
+  cacheLife('minutes');
+  if (!dbConfigured()) return DEFAULT_CATEGORIES;
+  const { data, error } = await db().from('categories').select('*').order('position').order('label');
+  if (error) throw new Error(`No se pudieron leer los rubros: ${error.message}`);
+  return data.map(toCategory);
+}
+
+/** Rubros visibles en la tienda. */
+export async function getCategories(): Promise<CategoryInfo[]> {
+  return (await getAllCategories()).filter((c) => c.active !== false);
 }
 
 export async function getProductBySlugOrId(slugOrId: string): Promise<Product | undefined> {
