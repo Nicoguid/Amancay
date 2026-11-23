@@ -2,13 +2,15 @@
 
 import { MIN_FILL_MS } from '@/lib/formGuard';
 import { db, dbConfigured } from '@/lib/server/supabase';
+import { after } from 'next/server';
 import { orderEvent } from '@/lib/server/orders';
+import { sendWithdrawalCode } from '@/lib/server/email';
 
 /*
  * Botón de arrepentimiento (Disp. 954/2025): se registra en la base con su código de trámite.
  * Si el número de pedido y el email coinciden con un pedido real, queda vinculado y aparece en el panel.
- * La norma pide enviar el código por email dentro de las 24 h: email_sent_at queda en null hasta que
- * se conecte el envío de mails (ver checklist).
+ * La norma pide enviar el código por email dentro de las 24 h: se manda al instante con Resend y
+ * email_sent_at registra cuándo salió (si falla, el panel lo marca como "email sin enviar").
  */
 
 export type WithdrawalResult = { ok: true; code: string; at: string } | { ok: false; error: string };
@@ -38,12 +40,16 @@ export async function submitWithdrawal(input: {
   const { data, error } = await db()
     .from('withdrawal_requests')
     .insert({ order_number: order, order_id: match?.id ?? null, full_name: fullName, email })
-    .select('code, created_at')
+    .select('id, code, created_at')
     .single();
   if (error || !data) {
     console.error('[arrepentimiento]', error?.message);
     return { ok: false, error: 'No pudimos registrar el pedido. Escribinos por WhatsApp y lo hacemos a mano.' };
   }
   if (match) await orderEvent(match.id, 'arrepentimiento', 'cliente', undefined, data.code);
+  after(async () => {
+    const sent = await sendWithdrawalCode({ email, fullName, code: data.code, orderNumber: order });
+    if (sent) await db().from('withdrawal_requests').update({ email_sent_at: new Date().toISOString() }).eq('id', data.id);
+  });
   return { ok: true, code: data.code, at: data.created_at };
 }

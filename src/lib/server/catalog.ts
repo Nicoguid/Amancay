@@ -46,6 +46,10 @@ export function toProduct(row: ProductWithVariants): Product {
     active: row.active,
     specifications: (row.specifications ?? {}) as Record<string, string>,
     curadoOGuia: row.curado_o_guia ?? undefined,
+    weightG: row.weight_g ?? undefined,
+    lengthCm: row.length_cm ?? undefined,
+    widthCm: row.width_cm ?? undefined,
+    heightCm: row.height_cm ?? undefined,
   });
 }
 

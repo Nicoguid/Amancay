@@ -455,7 +455,7 @@ function OrderCard({ order }: { order: Order }) {
                 <p className="mt-2 font-display text-xl">{SHIPPING_LABELS[order.shippingMethod]}</p>
                 <p className="mt-1 text-[15px] text-[var(--ink-muted)]">
                   {order.shippingMethod === 'moto_caba'
-                    ? 'Coordinamos día y franja horaria por WhatsApp.'
+                    ? 'La pedimos por app cuando está listo. El costo te lo confirmamos por WhatsApp y se paga aparte.'
                     : 'Te mandamos el número de seguimiento de Correo Argentino cuando lo despachemos.'}{' '}
                   A nombre de {order.customer.fullName}.
                 </p>

@@ -7,7 +7,8 @@ import { useStore, useCategories } from '@/context/StoreContext';
 import { ProductImage } from '@/components/ProductImage';
 import { ProductCard } from '@/components/ProductCard';
 import type { ShippingMethod } from '@/lib/types';
-import { SHIPPING_LABELS, SHIPPING_RATES, STORE, formatPrice, productPath, shippingCost, whatsappUrl } from '@/lib/storeConfig';
+import { CORREO_PRICE_LABEL, MOTO_PRICE_LABEL, SHIPPING_LABELS, STORE, formatPrice, productPath, whatsappUrl } from '@/lib/storeConfig';
+import { useShippingQuote } from '@/lib/useShippingQuote';
 import { DELIVERY_CHOICE_KEY, cartWhatsappMessage } from '@/lib/cartMessage';
 import { useTodayHours } from '@/lib/useStoreHours';
 
@@ -27,8 +28,26 @@ export function CartContent() {
   // Entrega: la que se elige acá; si no, la habitual del perfil; si no, retiro en el local.
   const shippingMethod: ShippingMethod = chosen ?? profile?.shippingMethod ?? 'pickup';
   const cp = postalCode || profile?.postalCode || '';
-  const shipping = shippingCost(shippingMethod, cp);
+  const quoteState = useShippingQuote(
+    shippingMethod,
+    cp,
+    cart.map((i) => ({ productId: i.product.id, variantId: i.selectedVariant?.id, quantity: i.quantity }))
+  );
+  const quote = quoteState.status === 'done' ? quoteState.quote : null;
+  const shipping = shippingMethod === 'pickup' ? 0 : quote?.ok ? quote.cost : null;
   const total = cartTotal + (shipping ?? 0);
+  const shippingLabel =
+    shippingMethod === 'pickup'
+      ? 'Sin costo'
+      : shippingMethod === 'moto_caba'
+        ? MOTO_PRICE_LABEL
+        : quoteState.status === 'loading'
+          ? 'Calculando…'
+          : quote?.ok
+            ? `${formatPrice(quote.cost)}${quote.estimated ? ' (estimado)' : ''}`
+            : quote
+              ? 'Revisá el código postal'
+              : 'Falta el código postal';
 
   const chooseShipping = (method: ShippingMethod) => {
     setChosen(method);
@@ -111,13 +130,22 @@ export function CartContent() {
       detail: `${STORE.address}. Te avisamos por WhatsApp cuando el pedido está listo.`,
       price: 'Sin costo',
     },
-    { id: 'moto_caba', icon: Bike, title: 'Moto en CABA', detail: 'Coordinamos día y franja horaria por WhatsApp.', price: formatPrice(SHIPPING_RATES.moto_caba) },
+    {
+      id: 'moto_caba',
+      icon: Bike,
+      title: 'Moto en CABA',
+      detail: 'La pedimos por app cuando está listo. El costo se confirma en ese momento y se paga aparte.',
+      price: MOTO_PRICE_LABEL,
+    },
     {
       id: 'correo_argentino',
       icon: Truck,
       title: 'Correo Argentino',
-      detail: `GBA ${formatPrice(SHIPPING_RATES.correo_gba)} · Resto del país ${formatPrice(SHIPPING_RATES.correo_interior)}. Con número de seguimiento.`,
-      price: shippingMethod === 'correo_argentino' && shipping !== null ? formatPrice(shipping) : 'Según código postal',
+      detail:
+        shippingMethod === 'correo_argentino' && quote?.ok && quote.service
+          ? quote.service
+          : 'A domicilio en todo el país, con número de seguimiento. Se calcula con tu código postal.',
+      price: shippingMethod === 'correo_argentino' && quote?.ok ? formatPrice(quote.cost) : CORREO_PRICE_LABEL,
     },
   ];
 
@@ -334,7 +362,7 @@ export function CartContent() {
                 <div className="flex justify-between gap-4 font-semibold">
                   <dt>{SHIPPING_LABELS[shippingMethod]}</dt>
                   <dd className={`tabular-nums ${shipping === 0 ? 'text-[var(--brand-olive)]' : ''}`}>
-                    {shipping === null ? 'Falta el código postal' : shipping === 0 ? 'Sin costo' : formatPrice(shipping)}
+                    {shippingLabel}
                   </dd>
                 </div>
               </dl>

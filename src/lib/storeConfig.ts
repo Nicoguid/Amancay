@@ -87,13 +87,28 @@ export function netPrice(finalPrice: number): number {
 /** Res. 4/2025, inc. d: en precios financiados va el precio contado, las cuotas y el CFTEA. */
 export const PROMO_CFTEA = '0,00 %';
 
-/** Tarifas de envío (PLACEHOLDER: proveedor de envíos sin decidir). */
-export const SHIPPING_RATES = {
-  pickup: 0,
-  moto_caba: 3500,
-  correo_gba: 5800,
-  correo_interior: 7900,
-} as const;
+/*
+ * Envíos:
+ * - Retiro en el local: sin costo.
+ * - Moto (solo CABA): la pide el local por app en el momento y el precio cambia, así que no se cobra
+ *   en la web: se muestra "a confirmar con el vendedor" y se paga aparte.
+ * - Correo Argentino: se cotiza con la API de MiCorreo según el código postal y el peso y medidas
+ *   del carrito (src/lib/server/shipping.ts). Estas tarifas fijas son solo el respaldo mientras
+ *   MiCorreo no esté configurado, y se muestran como "estimado".
+ */
+export const MOTO_PRICE_LABEL = 'A confirmar con el vendedor';
+export const CORREO_PRICE_LABEL = 'Según tu código postal';
+export const CORREO_FALLBACK = { gba: 5800, interior: 7900 } as const;
+
+/** Paquete típico por rubro (gramos y cm, ya embalado), para productos sin peso ni medidas cargados. */
+export const PACKAGE_DEFAULTS: Record<string, { weightG: number; lengthCm: number; widthCm: number; heightCm: number }> = {
+  mates: { weightG: 500, lengthCm: 18, widthCm: 14, heightCm: 14 },
+  bombillas: { weightG: 120, lengthCm: 25, widthCm: 6, heightCm: 4 },
+  perfumes: { weightG: 450, lengthCm: 16, widthCm: 11, heightCm: 8 },
+  desodorantes: { weightG: 300, lengthCm: 20, widthCm: 7, heightCm: 7 },
+  combos: { weightG: 750, lengthCm: 22, widthCm: 16, heightCm: 10 },
+  default: { weightG: 500, lengthCm: 20, widthCm: 15, heightCm: 10 },
+};
 
 export type PostalZone = 'caba' | 'gba' | 'interior';
 
@@ -109,13 +124,11 @@ export function postalZone(cp: number): PostalZone {
   return 'interior';
 }
 
-export function shippingCost(method: ShippingMethod, postalCode: string): number | null {
-  if (method === 'pickup') return SHIPPING_RATES.pickup;
+/** Tarifa de respaldo de Correo (sin MiCorreo). null si el CP no es válido. */
+export function fallbackCorreoCost(postalCode: string): number | null {
   const cp = parsePostalCode(postalCode);
   if (cp === null) return null;
-  // La moto llega solo a CABA: con un CP de afuera no hay precio (el checkout pide elegir Correo).
-  if (method === 'moto_caba') return postalZone(cp) === 'caba' ? SHIPPING_RATES.moto_caba : null;
-  return postalZone(cp) === 'interior' ? SHIPPING_RATES.correo_interior : SHIPPING_RATES.correo_gba;
+  return postalZone(cp) === 'interior' ? CORREO_FALLBACK.interior : CORREO_FALLBACK.gba;
 }
 
 export const SHIPPING_LABELS: Record<ShippingMethod, string> = {
@@ -127,7 +140,7 @@ export const SHIPPING_LABELS: Record<ShippingMethod, string> = {
 export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   transferencia: 'Transferencia',
   mercadopago: 'Mercado Pago',
-  mostrador: 'Efectivo al retirar',
+  mostrador: 'Efectivo o tarjeta al retirar',
 };
 
 /**

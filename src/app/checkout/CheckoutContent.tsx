@@ -7,7 +7,8 @@ import { ShoppingBag, ArrowLeft, Copy, MessageCircle, Store, Truck, Bike, Info, 
 import { useStore } from '@/context/StoreContext';
 import { ProductCard } from '@/components/ProductCard';
 import type { Order, PaymentMethod, ShippingMethod } from '@/lib/types';
-import { SHIPPING_LABELS, SHIPPING_RATES, STORE, formatPrice, shippingCost, whatsappUrl, waText } from '@/lib/storeConfig';
+import { CORREO_PRICE_LABEL, MOTO_PRICE_LABEL, SHIPPING_LABELS, STORE, formatPrice, whatsappUrl, waText } from '@/lib/storeConfig';
+import { useShippingQuote } from '@/lib/useShippingQuote';
 import { recordConsent, track } from '@/lib/consent';
 import { placeOrder } from './actions';
 import { looksAutomated } from '@/lib/formGuard';
@@ -84,6 +85,14 @@ export function CheckoutContent() {
   }, [isHydrated, cart.length, cartTotal]);
   const formRef = useRef<HTMLFormElement>(null);
 
+  // Envío: lo cotiza el servidor (MiCorreo para Correo). La moto va "a confirmar" y se paga aparte.
+  const quoteState = useShippingQuote(
+    shippingMethod,
+    form.postalCode,
+    cart.map((i) => ({ productId: i.product.id, variantId: i.selectedVariant?.id, quantity: i.quantity }))
+  );
+  const quote = quoteState.status === 'done' ? quoteState.quote : null;
+
   // Si la persona guardó su perfil, el formulario arranca completo (una sola vez, al leer el navegador).
   const [prefilled, setPrefilled] = useState(false);
   if (isHydrated && !prefilled) {
@@ -149,8 +158,21 @@ export function CheckoutContent() {
     );
   }
 
-  const shipping = shippingCost(shippingMethod, form.postalCode);
+  // null = todavía no se sabe (falta CP, cotizando o error)
+  const shipping = shippingMethod === 'pickup' ? 0 : quote?.ok ? quote.cost : null;
   const finalTotal = cartTotal + (shipping ?? 0);
+  const shippingLabel =
+    shippingMethod === 'pickup'
+      ? 'Sin costo'
+      : shippingMethod === 'moto_caba' && quote?.ok
+        ? MOTO_PRICE_LABEL
+        : quoteState.status === 'loading'
+          ? 'Calculando…'
+          : quote?.ok
+            ? `${formatPrice(quote.cost)}${quote.estimated ? ' (estimado)' : ''}`
+            : shippingMethod === 'moto_caba'
+              ? MOTO_PRICE_LABEL
+              : 'Falta el CP';
 
   const setField = (name: FieldName, value: string) => {
     setForm((f) => ({ ...f, [name]: value }));
@@ -280,13 +302,22 @@ export function CheckoutContent() {
 
   const shippingOptions: { id: ShippingMethod; icon: typeof Store; title: string; detail: string; price: string }[] = [
     { id: 'pickup', icon: Store, title: 'Retiro en el local', detail: `${STORE.address}. Te avisamos por WhatsApp cuando está listo.`, price: 'Sin costo' },
-    { id: 'moto_caba', icon: Bike, title: 'Moto en CABA', detail: 'Coordinamos día y franja por WhatsApp.', price: formatPrice(SHIPPING_RATES.moto_caba) },
+    {
+      id: 'moto_caba',
+      icon: Bike,
+      title: 'Moto en CABA',
+      detail: 'La pedimos por app cuando el pedido está listo. El costo se confirma en ese momento y lo pagás aparte.',
+      price: MOTO_PRICE_LABEL,
+    },
     {
       id: 'correo_argentino',
       icon: Truck,
       title: 'Correo Argentino',
-      detail: `GBA ${formatPrice(SHIPPING_RATES.correo_gba)} · Resto del país ${formatPrice(SHIPPING_RATES.correo_interior)}`,
-      price: shippingMethod === 'correo_argentino' && shipping !== null ? formatPrice(shipping) : 'Según CP',
+      detail:
+        shippingMethod === 'correo_argentino' && quote?.ok && quote.service
+          ? quote.service
+          : 'A domicilio en todo el país, con número de seguimiento. Se calcula con tu código postal.',
+      price: shippingMethod === 'correo_argentino' && quote?.ok ? formatPrice(quote.cost) : CORREO_PRICE_LABEL,
     },
   ];
 
@@ -295,8 +326,11 @@ export function CheckoutContent() {
     { id: 'mercadopago', title: 'Mercado Pago', detail: 'Tarjetas de crédito, débito o dinero en cuenta.' },
     {
       id: 'mostrador',
-      title: 'Efectivo al retirar',
-      detail: shippingMethod === 'pickup' ? 'Pagás en el local cuando lo venís a buscar.' : 'Disponible solo con retiro en el local.',
+      title: 'Efectivo o tarjeta al retirar',
+      detail:
+        shippingMethod === 'pickup'
+          ? 'Pagás en el local (hay posnet) cuando lo venís a buscar. Te lo guardamos 72 horas.'
+          : 'Disponible solo con retiro en el local.',
       disabled: shippingMethod !== 'pickup',
     },
   ];
@@ -343,7 +377,7 @@ export function CheckoutContent() {
                 </div>
                 <div className="flex justify-between text-[var(--ink-muted)]">
                   <dt>{SHIPPING_LABELS[shippingMethod]}</dt>
-                  <dd className="tabular-nums">{shipping === null ? 'Falta el CP' : shipping === 0 ? 'Sin costo' : formatPrice(shipping)}</dd>
+                  <dd className="tabular-nums">{shippingLabel}</dd>
                 </div>
                 <div className="flex items-baseline justify-between border-t border-[var(--amancay-border)] pt-3 font-semibold">
                   <dt>Total</dt>
@@ -425,6 +459,21 @@ export function CheckoutContent() {
                     {field('city', 'Localidad o barrio', { type: 'text', autoComplete: 'address-level2' })}
                     {field('postalCode', 'Código postal', { type: 'text', inputMode: 'numeric', autoComplete: 'postal-code', placeholder: 'Ej.: 1176' })}
                   </div>
+                  <p aria-live="polite" className="text-sm">
+                    {quoteState.status === 'loading' && <span className="text-[var(--ink-muted)]">Calculando el envío…</span>}
+                    {quote && !quote.ok && !errors.postalCode && <span className="text-[var(--amancay-wine)]">{quote.error}</span>}
+                    {quote?.ok && shippingMethod === 'moto_caba' && (
+                      <span className="text-[var(--ink-secondary)]">
+                        La moto se paga aparte: te confirmamos el costo por WhatsApp cuando la pedimos.
+                      </span>
+                    )}
+                    {quote?.ok && shippingMethod === 'correo_argentino' && (
+                      <span className="text-[var(--ink-secondary)]">
+                        {quote.service}: {formatPrice(quote.cost)}
+                        {quote.estimated ? ' (estimado)' : ''}.
+                      </span>
+                    )}
+                  </p>
                 </div>
               )}
               <div className="pt-2">
@@ -592,10 +641,11 @@ function OrderConfirmation({ order }: { order: Order }) {
             </>
           ) : (
             <>
-              <p className="font-semibold">{SHIPPING_LABELS[order.shippingMethod]}</p>
+              <p className="font-semibold">{order.shippingService ?? SHIPPING_LABELS[order.shippingMethod]}</p>
               <p className="text-[var(--ink-muted)]">
                 {order.customer.address}, {order.customer.city} (CP {order.customer.postalCode}). Te escribimos al {order.customer.phone}{' '}
                 para coordinar.
+                {order.shippingMethod === 'moto_caba' && ' El costo de la moto se confirma cuando la pedimos y se paga aparte.'}
               </p>
             </>
           )}
@@ -650,7 +700,8 @@ function OrderConfirmation({ order }: { order: Order }) {
 
         {order.paymentMethod === 'mostrador' && (
           <p className="rounded-btn bg-[var(--bg-subtle)] p-4 text-[var(--ink-muted)]">
-            Pagás en efectivo cuando lo retirás en {STORE.address}. Te avisamos por WhatsApp cuando esté listo.
+            Pagás en efectivo o con tarjeta cuando lo retirás en {STORE.address}. Te lo guardamos 72 horas: si no podés venir, avisanos por
+            WhatsApp.
           </p>
         )}
 

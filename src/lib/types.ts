@@ -30,6 +30,11 @@ export interface Product {
   active: boolean;
   specifications?: Record<string, string>;
   curadoOGuia?: string;
+  /** Paquete para Correo Argentino (si falta, se usa el típico del rubro). */
+  weightG?: number;
+  lengthCm?: number;
+  widthCm?: number;
+  heightCm?: number;
 }
 
 export type OrderStatus = 
@@ -83,6 +88,8 @@ export interface Order {
   total: number;
   status: OrderStatus;
   paymentStatus?: PaymentStatus;
+  /** Servicio de Correo cotizado (ej. "Paq.ar Clásico a domicilio"). */
+  shippingService?: string;
   /** Hasta cuándo se reserva el stock si no se paga. */
   expiresAt?: string;
   /** Id de la Order de Mercado Pago (solo panel). */

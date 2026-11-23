@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft, Bike, Bookmark, Check, ChevronRight, CreditCard, MapPin, MessageCircle, Package, ShieldCheck, Store, Trash2, Truck, UserRound } from 'lucide-react';
 import { EMPTY_PROFILE, useStore, type CustomerProfile } from '@/context/StoreContext';
 import type { ShippingMethod } from '@/lib/types';
-import { PROMO, PROMO_UNTIL_LABEL, SHIPPING_RATES, STORE, formatPrice, whatsappUrl } from '@/lib/storeConfig';
+import { PROMO, PROMO_UNTIL_LABEL, CORREO_PRICE_LABEL, MOTO_PRICE_LABEL, STORE, whatsappUrl } from '@/lib/storeConfig';
 import { legalPath } from '@/lib/legal';
 import { usePromoActive } from '@/lib/usePromo';
 
@@ -29,8 +29,8 @@ function validate(data: CustomerProfile): Errors {
 
 const DELIVERY: { id: ShippingMethod; icon: typeof Store; title: string; detail: string }[] = [
   { id: 'pickup', icon: Store, title: 'Retiro en el local', detail: `${STORE.address}. Sin costo.` },
-  { id: 'moto_caba', icon: Bike, title: 'Moto en CABA', detail: `${formatPrice(SHIPPING_RATES.moto_caba)}. Se coordina por WhatsApp.` },
-  { id: 'correo_argentino', icon: Truck, title: 'Correo Argentino', detail: `Desde ${formatPrice(SHIPPING_RATES.correo_gba)}, a todo el país.` },
+  { id: 'moto_caba', icon: Bike, title: 'Moto en CABA', detail: `${MOTO_PRICE_LABEL}. Se paga aparte.` },
+  { id: 'correo_argentino', icon: Truck, title: 'Correo Argentino', detail: `${CORREO_PRICE_LABEL}, a todo el país.` },
 ];
 
 export function ProfileContent() {

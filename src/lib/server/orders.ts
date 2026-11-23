@@ -4,13 +4,18 @@ import type { ConsentRecord } from '@/lib/consent';
 import type { DbConsent, DbOrder, DbOrderItem } from './database.types';
 import { db } from './supabase';
 import type { MpOrderState } from './mercadopago';
+import { sendPaymentApproved } from './email';
 
 /** Cuánto se reserva el stock esperando el pago (formato interval de Postgres). */
 export const PAYMENT_HOLD: Record<PaymentMethod, string> = {
   mercadopago: '2 hours',
   transferencia: '48 hours', // el local controla la transferencia y la marca como pagada en el panel
-  mostrador: '0 seconds', // se paga al retirar: create_order no le pone vencimiento
+  mostrador: '0 seconds', // se paga al retirar: el vencimiento lo pone placeOrder (PICKUP_EXPIRES_MS)
 };
+
+/** Retiros: a las 48 h sin buscar se manda un aviso; a las 72 h vence (solo si se paga al retirar). */
+export const PICKUP_REMINDER_MS = 48 * 3600_000;
+export const PICKUP_EXPIRES_MS = 72 * 3600_000;
 
 export type OrderWithItems = DbOrder & { order_items: DbOrderItem[]; consents?: DbConsent[] };
 
@@ -50,6 +55,7 @@ export function toOrder(row: OrderWithItems): Order {
     total: Number(row.total),
     status: row.status as OrderStatus,
     paymentStatus: row.payment_status as PaymentStatus,
+    shippingService: row.shipping_service ?? undefined,
     expiresAt: row.expires_at ?? undefined,
     mpOrderId: row.mp_order_id ?? undefined,
     isSample: row.is_sample,
@@ -123,6 +129,11 @@ export async function applyMpState(mp: MpOrderState): Promise<{ orderId: string 
       })
       .eq('id', order.id);
     await orderEvent(order.id, 'pago', 'mercadopago', order.payment_status, 'aprobado', { mp_order: mp.id, payment: mp.paymentId });
+    await sendPaymentApproved({
+      orderNumber: order.order_number,
+      total: Number(order.total),
+      customer: { fullName: order.customer_name, email: order.customer_email, phone: '' },
+    });
     return { orderId: order.id, changed: true };
   }
 

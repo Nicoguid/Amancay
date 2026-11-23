@@ -7,7 +7,7 @@ import { StoreMapSketch } from '@/components/home/StoreMapSketch';
 import { BrandsTicker } from '@/components/MarqueeTicker';
 import { PromoCallout } from '@/components/PromoCallout';
 import { Reveal } from '@/components/Reveal';
-import { SHIPPING_RATES, STORE, formatPrice, whatsappUrl } from '@/lib/storeConfig';
+import { CORREO_PRICE_LABEL, MOTO_PRICE_LABEL, STORE, whatsappUrl } from '@/lib/storeConfig';
 import { serializeJsonLd, storeJsonLd } from '@/lib/structuredData';
 
 export const metadata: Metadata = {
@@ -32,25 +32,25 @@ const DELIVERY_OPTIONS = [
   {
     icon: Bike,
     title: 'Moto en CABA',
-    body: 'Coordinamos día y franja horaria por WhatsApp.',
-    price: formatPrice(SHIPPING_RATES.moto_caba),
+    body: 'La pedimos por app cuando el pedido está listo y se paga aparte.',
+    price: MOTO_PRICE_LABEL,
   },
   {
     icon: Truck,
     title: 'Correo Argentino',
     body: 'A todo el país, con número de seguimiento.',
-    price: `Desde ${formatPrice(SHIPPING_RATES.correo_gba)}`,
+    price: CORREO_PRICE_LABEL,
   },
 ];
 
 const FAQ = [
   {
     q: '¿Puedo pagar en el local?',
-    a: 'Sí. Si elegís retiro en el local, podés pagar en efectivo o con tarjeta al retirar.',
+    a: 'Sí. Si elegís retiro en el local, podés pagar en efectivo o con tarjeta (tenemos posnet) al retirar.',
   },
   {
     q: '¿Cuánto sale el envío?',
-    a: `Moto en CABA: ${formatPrice(SHIPPING_RATES.moto_caba)}. Correo Argentino: ${formatPrice(SHIPPING_RATES.correo_gba)} a GBA y ${formatPrice(SHIPPING_RATES.correo_interior)} al resto del país. Retirar en el local no tiene costo.`,
+    a: 'Retirar en el local no tiene costo. En CABA mandamos una moto por app: el costo se confirma cuando la pedimos y se paga aparte. A todo el país enviamos por Correo Argentino: el precio se calcula en el carrito con tu código postal.',
   },
   {
     q: '¿Qué medios de pago aceptan?',

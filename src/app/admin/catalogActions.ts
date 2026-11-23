@@ -97,6 +97,11 @@ export type ProductInput = {
   isFeatured: boolean;
   isBestSeller: boolean;
   isNew: boolean;
+  /** Paquete para Correo (opcional: si falta se usa el típico del rubro). */
+  weightG?: number;
+  lengthCm?: number;
+  widthCm?: number;
+  heightCm?: number;
   /** Tamaños u opciones. Vacío = producto simple (vale `price` y `stock`). */
   variants: { id?: string; name: string; price: number; stock: number }[];
 };
@@ -116,6 +121,9 @@ function validateProduct(input: ProductInput): string | null {
     if (!validPrice(v.price)) return `El precio de "${v.name}" tiene que ser mayor a 0.`;
     if (!validStock(v.stock)) return `El stock de "${v.name}" tiene que ser un número entero, 0 o más.`;
   }
+  const size = (v: unknown, max: number) => v === undefined || (typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= max);
+  if (!size(input.weightG, 25000)) return 'El peso va en gramos, entre 1 y 25000.';
+  if (![input.lengthCm, input.widthCm, input.heightCm].every((v) => size(v, 150))) return 'Las medidas van en centímetros, entre 1 y 150.';
   const names = (input.variants ?? []).map((v) => text(v.name, 120).toLowerCase());
   if (new Set(names).size !== names.length) return 'Hay dos opciones con el mismo nombre.';
   return null;
@@ -146,6 +154,10 @@ export async function saveProductFullAction(id: string | null, input: ProductInp
       is_featured: !!input.isFeatured,
       is_best_seller: !!input.isBestSeller,
       is_new: !!input.isNew,
+      weight_g: input.weightG ?? null,
+      length_cm: input.lengthCm ?? null,
+      width_cm: input.widthCm ?? null,
+      height_cm: input.heightCm ?? null,
     };
 
     let productId = id;

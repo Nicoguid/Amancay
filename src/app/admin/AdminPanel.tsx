@@ -751,7 +751,7 @@ function OrdersTable() {
                   {PAYMENT_LABELS[o.paymentMethod] ?? o.paymentMethod}
                   <span className={`block text-xs ${paid ? 'text-[var(--brand-olive)]' : 'text-[var(--ink-muted)]'}`}>
                     {PAYMENT_STATUS_LABELS[o.paymentStatus ?? 'pendiente']}
-                    {o.status === 'pendiente' && o.expiresAt && ` · vence ${dateFormat.format(new Date(o.expiresAt))}`}
+                    {o.expiresAt && o.status !== 'cancelado' && ` · vence ${dateFormat.format(new Date(o.expiresAt))}`}
                   </span>
                   {paid && o.status !== 'cancelado' && (
                     <button

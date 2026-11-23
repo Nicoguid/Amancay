@@ -30,6 +30,8 @@ type OrderRow = {
   subtotal: number;
   total: number;
   updated_at: string;
+  shipping_service: string | null;
+  pickup_reminder_sent_at: string | null;
 };
 
 type ProductRow = {
@@ -53,6 +55,10 @@ type ProductRow = {
   specifications: Json;
   stock: number;
   updated_at: string;
+  weight_g: number | null;
+  length_cm: number | null;
+  width_cm: number | null;
+  height_cm: number | null;
 };
 
 type VariantRow = {

@@ -1,15 +1,17 @@
 'use server';
 
 import { updateTag } from 'next/cache';
+import { after } from 'next/server';
+import { notifyStoreNewOrder, sendOrderConfirmation } from '@/lib/server/email';
 import type { Order, PaymentMethod, ShippingMethod } from '@/lib/types';
 import { clampCheckout, validateCheckout, type CheckoutForm } from '@/lib/checkoutValidation';
 import { LEGAL_DOCS } from '@/lib/legal';
 import { MIN_FILL_MS } from '@/lib/formGuard';
-import { shippingCost } from '@/lib/storeConfig';
+import { quoteShipping } from '@/lib/server/shipping';
 import { CATALOG_TAG } from '@/lib/server/catalog';
 import { db, dbConfigured, friendlyDbError } from '@/lib/server/supabase';
 import { createCheckout, mpConfigured } from '@/lib/server/mercadopago';
-import { PAYMENT_HOLD, toOrder, type OrderWithItems } from '@/lib/server/orders';
+import { PAYMENT_HOLD, PICKUP_EXPIRES_MS, toOrder, type OrderWithItems } from '@/lib/server/orders';
 
 export type PlaceOrderInput = {
   form: CheckoutForm;
@@ -42,7 +44,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   if (!input || typeof input !== 'object') return { ok: false, error: GENERIC };
   if (!SHIPPING.includes(input.shippingMethod) || !PAYMENTS.includes(input.paymentMethod)) return { ok: false, error: GENERIC };
   if (input.paymentMethod === 'mostrador' && input.shippingMethod !== 'pickup') {
-    return { ok: false, error: 'El pago en efectivo es solo para retiro en el local.' };
+    return { ok: false, error: 'El pago en el local es solo para retiro en el local.' };
   }
   if (input.paymentMethod === 'mercadopago' && !mpConfigured()) {
     return { ok: false, error: 'Mercado Pago no está disponible en este momento. Elegí transferencia o escribinos.' };
@@ -70,9 +72,14 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     return { ok: false, error: 'Para confirmar tenés que aceptar los términos y la política de privacidad.' };
   }
 
-  // 4) Envío calculado en el servidor
-  const shipping = shippingCost(input.shippingMethod, form.postalCode);
-  if (shipping === null) return { ok: false, error: 'Revisá el código postal: no pudimos calcular el envío.' };
+  // 4) Envío cotizado de nuevo en el servidor (MiCorreo para Correo; la moto va en 0 y se paga aparte)
+  const quote = await quoteShipping(
+    input.shippingMethod,
+    form.postalCode,
+    items.map((i) => ({ productId: i.product_id, variantId: i.variant_id, quantity: i.quantity }))
+  );
+  if (!quote.ok) return { ok: false, error: quote.error, fieldErrors: { postalCode: quote.error } };
+  const shipping = quote.cost;
 
   const pickup = input.shippingMethod === 'pickup';
   const consents = (['terminos', 'privacidad'] as const).map((doc) => ({
@@ -111,8 +118,20 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   // El stock cambió: el catálogo en caché se vuelve a leer en la próxima visita.
   updateTag(CATALOG_TAG);
 
+  // Qué servicio se cotizó, y para "efectivo o tarjeta al retirar": vence a las 72 h si nadie lo busca.
+  const extra: { shipping_service?: string; expires_at?: string } = {};
+  if (quote.service) extra.shipping_service = quote.service.slice(0, 120);
+  if (input.paymentMethod === 'mostrador') extra.expires_at = new Date(Date.now() + PICKUP_EXPIRES_MS).toISOString();
+  if (Object.keys(extra).length) await db().from('orders').update(extra).eq('id', created.id);
+
   const { data: full } = await db().from('orders').select('*, order_items(*)').eq('id', created.id).single();
   const row = (full ?? { ...created, order_items: [] }) as OrderWithItems;
+
+  // Mails al cliente y al local, después de responder (no hacen esperar a quien compra).
+  after(async () => {
+    const order = toOrder(row);
+    await Promise.all([sendOrderConfirmation(order), notifyStoreNewOrder(order)]);
+  });
 
   // 6) Mercado Pago: se crea la Order con el total de la base
   if (input.paymentMethod === 'mercadopago') {

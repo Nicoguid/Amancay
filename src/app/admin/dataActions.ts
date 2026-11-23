@@ -253,16 +253,20 @@ export async function setOrderStatusAction(orderId: string, status: OrderStatus)
       return ok(undefined);
     }
 
-    // Si el local avanza el pedido, ya no vence. "Pagado" a mano = cobro confirmado (transferencia o mostrador).
-    const confirmsPayment = status !== 'pendiente' && (order.payment_status === 'pendiente' || order.payment_status === 'rechazado');
+    const unpaid = order.payment_status === 'pendiente' || order.payment_status === 'rechazado';
+    // "Efectivo o tarjeta al retirar": se cobra cuando lo retiran (Entregado) o si el local lo marca Pagado.
+    // Mientras tanto sigue venciendo a las 72 h aunque esté preparado o listo.
+    const atCounter = order.payment_method === 'mostrador';
+    const confirmsPayment = unpaid && (atCounter ? status === 'entregado' || status === 'pagado' : status !== 'pendiente');
     if (confirmsPayment && order.payment_method === 'mercadopago') {
       return fail('Este pedido es de Mercado Pago: se marca como pagado solo cuando Mercado Pago confirma el cobro.');
     }
+    const keepsExpiry = atCounter && unpaid && !confirmsPayment;
     const { error } = await db()
       .from('orders')
       .update({
         status,
-        ...(status !== 'pendiente' ? { expires_at: null } : {}),
+        ...(status !== 'pendiente' && !keepsExpiry ? { expires_at: null } : {}),
         ...(confirmsPayment ? { payment_status: 'aprobado', paid_at: new Date().toISOString() } : {}),
       })
       .eq('id', orderId);

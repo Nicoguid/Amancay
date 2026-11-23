@@ -15,7 +15,8 @@ import { usePromoActive } from '@/lib/usePromo';
 import {
   PROMO,
   PROMO_UNTIL_LABEL,
-  SHIPPING_RATES,
+  CORREO_PRICE_LABEL,
+  MOTO_PRICE_LABEL,
   STORE,
   formatPrice,
   parsePostalCode,
@@ -27,6 +28,7 @@ import {
   waText,
 } from '@/lib/storeConfig';
 import { legalPath } from '@/lib/legal';
+import { getShippingQuote } from '@/app/checkout/shippingAction';
 
 export function ProductDetail({ id }: { id: string }) {
   const { products, isHydrated } = useStore();
@@ -99,26 +101,35 @@ function ProductView({ product, products }: { product: Product; products: Produc
     timer.current = setTimeout(() => setAddStatus('idle'), 2500);
   };
 
-  const handleCalculateShipping = (e: React.FormEvent) => {
+  const handleCalculateShipping = async (e: React.FormEvent) => {
     e.preventDefault();
     const cp = parsePostalCode(postalCode);
     if (cp === null) {
       setShippingResult({ title: 'Código postal no válido', note: 'Escribí los 4 números del código postal, por ejemplo 1176.' });
       return;
     }
-    const zone = postalZone(cp);
-    if (zone === 'caba') {
+    if (postalZone(cp) === 'caba') {
       setShippingResult({
         title: 'Moto en CABA',
-        price: formatPrice(SHIPPING_RATES.moto_caba),
-        note: `También podés retirar sin costo en ${STORE.address}.`,
+        price: MOTO_PRICE_LABEL,
+        note: `La pedimos por app y se paga aparte. También podés retirar sin costo en ${STORE.address}.`,
       });
-    } else {
-      setShippingResult({
-        title: zone === 'gba' ? 'Correo Argentino a GBA' : 'Correo Argentino al interior',
-        price: formatPrice(zone === 'gba' ? SHIPPING_RATES.correo_gba : SHIPPING_RATES.correo_interior),
-        note: 'Con número de seguimiento.',
-      });
+      return;
+    }
+    setShippingResult({ title: 'Correo Argentino', price: 'Calculando…', note: 'Consultando a Correo Argentino.' });
+    try {
+      const quote = await getShippingQuote('correo_argentino', String(cp), [{ productId: product.id, variantId: variant?.id, quantity: 1 }]);
+      setShippingResult(
+        quote.ok
+          ? {
+              title: 'Correo Argentino',
+              price: `${formatPrice(quote.cost)}${quote.estimated ? ' (estimado)' : ''}`,
+              note: `${quote.service ?? 'A domicilio'}. Para este producto; con más productos el costo puede cambiar.`,
+            }
+          : { title: 'Correo Argentino', note: quote.error }
+      );
+    } catch {
+      setShippingResult({ title: 'Correo Argentino', note: 'No pudimos calcular el envío. Probá de nuevo.' });
     }
   };
 
@@ -443,8 +454,8 @@ function ProductView({ product, products }: { product: Product; products: Produc
               <ul className="mt-3 space-y-2">
                 {[
                   { icon: Store, title: 'Retiro en el local', detail: `${STORE.address}. Te avisamos por WhatsApp cuando está listo.`, price: 'Sin costo', free: true },
-                  { icon: Bike, title: 'Moto en CABA', detail: 'Coordinamos día y franja horaria por WhatsApp.', price: formatPrice(SHIPPING_RATES.moto_caba), free: false },
-                  { icon: Truck, title: 'Correo Argentino', detail: 'A todo el país, con número de seguimiento.', price: `Desde ${formatPrice(SHIPPING_RATES.correo_gba)}`, free: false },
+                  { icon: Bike, title: 'Moto en CABA', detail: 'La pedimos por app cuando está listo y se paga aparte.', price: MOTO_PRICE_LABEL, free: false },
+                  { icon: Truck, title: 'Correo Argentino', detail: 'A todo el país, con número de seguimiento.', price: CORREO_PRICE_LABEL, free: false },
                 ].map(({ icon: Icon, title, detail, price: cost, free }) => (
                   <li key={title} className="flex items-start gap-3 rounded-btn bg-[var(--bg-subtle)] p-3.5">
                     <Icon className="mt-0.5 h-5 w-5 shrink-0 text-[var(--ink-gold)]" aria-hidden="true" />
@@ -611,7 +622,7 @@ function ProductView({ product, products }: { product: Product; products: Produc
           </li>
           <li className="rounded-btn bg-[var(--bg-subtle)] p-4">
             <p className="font-semibold">En el local</p>
-            <p className="text-sm text-[var(--ink-muted)]">Efectivo al retirar en {STORE.address}.</p>
+            <p className="text-sm text-[var(--ink-muted)]">Efectivo o tarjeta al retirar en {STORE.address}.</p>
           </li>
         </ul>
       </Dialog>

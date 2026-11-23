@@ -7,6 +7,7 @@ import { ProductImage } from '@/components/ProductImage';
 import type { Product } from '@/lib/types';
 import type { CategoryInfo } from '@/lib/categories';
 import { parseArNumber, parseArsPrice } from '@/lib/csv';
+import { PACKAGE_DEFAULTS } from '@/lib/storeConfig';
 import { useAdmin } from './AdminDataContext';
 import type { CategoryInput } from './catalogActions';
 
@@ -169,6 +170,10 @@ type Draft = {
   isNew: boolean;
   hasVariants: boolean;
   variants: VariantDraft[];
+  weightG: string;
+  lengthCm: string;
+  widthCm: string;
+  heightCm: string;
 };
 
 const newKey = () => Math.random().toString(36).slice(2, 9);
@@ -179,6 +184,7 @@ function toDraft(p: Product | null, defaultCategory: string): Draft {
       name: '', category: defaultCategory, brand: '', shortDescription: '', description: '', price: '', originalPrice: '', stock: '1',
       images: [], active: true, isFeatured: false, isBestSeller: false, isNew: true, hasVariants: false,
       variants: [{ key: newKey(), name: '', price: '', stock: '' }],
+      weightG: '', lengthCm: '', widthCm: '', heightCm: '',
     };
   }
   return {
@@ -199,6 +205,10 @@ function toDraft(p: Product | null, defaultCategory: string): Draft {
     variants: p.variants?.length
       ? p.variants.map((v) => ({ key: v.id, id: v.id, name: v.name, price: String(v.price), stock: String(v.stock) }))
       : [{ key: newKey(), name: '', price: '', stock: '' }],
+    weightG: p.weightG ? String(p.weightG) : '',
+    lengthCm: p.lengthCm ? String(p.lengthCm) : '',
+    widthCm: p.widthCm ? String(p.widthCm) : '',
+    heightCm: p.heightCm ? String(p.heightCm) : '',
   };
 }
 
@@ -237,6 +247,9 @@ export function ProductEditor({ product, open, onClose }: { product: Product | n
     if (!draft.hasVariants && (stock === null || stock < 0 || !Number.isInteger(stock))) return setError('El stock tiene que ser un número entero, 0 o más.');
     const original = draft.originalPrice.trim() ? parseArsPrice(draft.originalPrice) : undefined;
     if (original === null) return setError('El precio "antes" no es válido.');
+    const optInt = (v: string) => (v.trim() ? parseArNumber(v) ?? NaN : undefined);
+    const pack = { weightG: optInt(draft.weightG), lengthCm: optInt(draft.lengthCm), widthCm: optInt(draft.widthCm), heightCm: optInt(draft.heightCm) };
+    if (Object.values(pack).some((v) => v !== undefined && (!Number.isInteger(v) || v < 1))) return setError('El peso y las medidas van en números enteros.');
 
     setSaving(true);
     const res = await saveProductFull(product?.id ?? null, {
@@ -253,6 +266,7 @@ export function ProductEditor({ product, open, onClose }: { product: Product | n
       isFeatured: draft.isFeatured,
       isBestSeller: draft.isBestSeller,
       isNew: draft.isNew,
+      ...pack,
       variants,
     });
     setSaving(false);
@@ -384,6 +398,35 @@ export function ProductEditor({ product, open, onClose }: { product: Product | n
             className={field}
           />
         </div>
+
+        <details className="rounded-md border border-[var(--amancay-border)] p-4">
+          <summary className="cursor-pointer text-sm font-semibold">Peso y medidas para Correo Argentino (opcional)</summary>
+          <p className="mt-2 text-xs text-[var(--ink-muted)]">
+            Del paquete ya armado. Si lo dejás vacío se usa lo típico del rubro (
+            {(() => {
+              const d = PACKAGE_DEFAULTS[draft.category] ?? PACKAGE_DEFAULTS.default;
+              return `${d.weightG} g, ${d.lengthCm} × ${d.widthCm} × ${d.heightCm} cm`;
+            })()}
+            ).
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {(
+              [
+                ['weightG', 'Peso (g)'],
+                ['lengthCm', 'Largo (cm)'],
+                ['widthCm', 'Ancho (cm)'],
+                ['heightCm', 'Alto (cm)'],
+              ] as const
+            ).map(([key, label]) => (
+              <div key={key}>
+                <label htmlFor={`${ids}-${key}`} className="mb-1 block text-xs font-semibold">
+                  {label}
+                </label>
+                <input id={`${ids}-${key}`} inputMode="numeric" value={draft[key]} onChange={(e) => set(key, e.target.value)} className={field} />
+              </div>
+            ))}
+          </div>
+        </details>
 
         <fieldset className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
           <legend className="mb-1 text-sm font-semibold">Mostrar</legend>
