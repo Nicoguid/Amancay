@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
-import { INITIAL_PRODUCTS } from '@/lib/mockData';
+import { getProductBySlugOrId } from '@/lib/server/catalog';
 import { productPath } from '@/lib/storeConfig';
 import { categoryLabel } from '@/lib/categories';
 import { ProductDetail } from './ProductDetail';
@@ -10,7 +10,7 @@ type Params = Promise<{ id: string }>;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { id } = await params;
-  const product = INITIAL_PRODUCTS.find((p) => p.id === id || p.slug === id);
+  const product = await getProductBySlugOrId(id);
   if (!product) return { title: 'Producto', robots: { index: false } };
   const rubro = categoryLabel(product.category);
   // Meta descripción: qué es + dónde se consigue (150-160 caracteres).
@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
 async function ProductResolver({ params }: { params: Params }) {
   const { id } = await params;
-  const product = INITIAL_PRODUCTS.find((p) => p.id === id || p.slug === id);
+  const product = await getProductBySlugOrId(id);
   return (
     <>
       {product && (

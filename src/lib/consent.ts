@@ -1,12 +1,14 @@
 
 import { LEGAL_DOCS } from './legal';
+import { logCookieConsent } from '@/app/_actions/consent';
 
 /*
  * Consentimientos y medición.
  *
  * - Registro: cada aceptación (términos, privacidad, cookies) se guarda con qué documento,
- *   qué versión, cuándo, desde qué página y cómo (casilla, botón). En la demo vive en el
- *   navegador; con backend se manda al servidor junto con el pedido y se guarda ahí.
+ *   qué versión, cuándo, desde qué página y cómo (casilla, botón). Queda una copia en el navegador
+ *   y el registro que vale se guarda en el servidor: los del checkout junto con el pedido y la
+ *   elección de cookies con logCookieConsent.
  * - Medición: los eventos de conversión solo se registran si la persona aceptó la medición.
  *   Sin un ID de Google Analytics configurado (NEXT_PUBLIC_GA_ID) no se carga ningún script
  *   de terceros: los eventos quedan en window.dataLayer y nada sale del navegador.
@@ -78,7 +80,9 @@ export function setCookieChoice(analytics: boolean, method: string) {
   } catch {
     // modo incógnito estricto: la elección dura lo que dura la pestaña
   }
-  recordConsent({ doc: 'cookies', decision: analytics ? 'aceptado' : 'rechazado', method });
+  const record = recordConsent({ doc: 'cookies', decision: analytics ? 'aceptado' : 'rechazado', method });
+  // Sin esperar: si falla, la elección igual vale en este navegador.
+  void logCookieConsent({ decision: record.decision, method: record.method, page: record.page }).catch(() => {});
   if (analytics) loadAnalytics();
 }
 

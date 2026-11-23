@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useStore } from '@/context/StoreContext';
+import { useAdmin } from './AdminDataContext';
 import type { Order, Product } from '@/lib/types';
 import { PAYMENT_LABELS, SHIPPING_LABELS, formatPrice } from '@/lib/storeConfig';
 import { CATEGORIES, categoryLabel } from '@/lib/categories';
@@ -71,7 +71,13 @@ function rangeFor(period: PeriodId, now: Date, firstOrder: Date): { from: Date; 
 
 type Totals = { sales: number; orders: number; paidOrders: number; units: number; pending: number; pendingCount: number; shipping: number };
 
-function totals(orders: Order[]): Totals {
+/** Cancelados y reembolsados no son ventas. */
+const isVoid = (o: Order) => o.status === 'cancelado' || o.paymentStatus === 'reembolsado';
+/** Venta cobrada: ni pendiente ni anulada. */
+const isSale = (o: Order) => o.status !== 'pendiente' && !isVoid(o);
+
+function totals(all: Order[]): Totals {
+  const orders = all.filter((o) => !isVoid(o));
   const t: Totals = { sales: 0, orders: orders.length, paidOrders: 0, units: 0, pending: 0, pendingCount: 0, shipping: 0 };
   for (const o of orders) {
     if (o.status === 'pendiente') {
@@ -250,7 +256,7 @@ function SalesChart({ buckets, groupLabel }: { buckets: { label: string; sales: 
 }
 
 export function MetricsTab({ lowStock, lowStockThreshold }: { lowStock: { key: string; name: string; sku: string; stock: number }[]; lowStockThreshold: number }) {
-  const { orders, products, isHydrated } = useStore();
+  const { orders, products, isHydrated } = useAdmin();
   const [period, setPeriod] = useState<PeriodId>('30d');
   const [group, setGroup] = useState<GroupId>('dia');
 
@@ -277,7 +283,7 @@ export function MetricsTab({ lowStock, lowStockThreshold }: { lowStock: { key: s
       t = group === 'dia' ? startOfDay(new Date(t + DAY + 3_600_000)).getTime() : group === 'semana' ? t + 7 * DAY : new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime();
     }
     for (const o of current) {
-      if (o.status === 'pendiente') continue;
+      if (!isSale(o)) continue;
       const b = buckets.get(keyOf(new Date(o.createdAt)));
       if (b) {
         b.sales += o.total;
@@ -291,7 +297,7 @@ export function MetricsTab({ lowStock, lowStockThreshold }: { lowStock: { key: s
     });
 
     // Desgloses (solo pedidos cobrados)
-    const paid = current.filter((o) => o.status !== 'pendiente');
+    const paid = current.filter(isSale);
     const byProduct = new Map<string, Product | undefined>(products.map((p) => [p.id, p]));
     const sumBy = (key: (o: Order) => string) => {
       const m = new Map<string, { value: number; count: number }>();

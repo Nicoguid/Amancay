@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { STORE, waText, whatsappUrl } from '@/lib/storeConfig';
-import { looksAutomated, randomCode } from '@/lib/formGuard';
+import { looksAutomated } from '@/lib/formGuard';
+import { submitWithdrawal } from './actions';
 
 type Request = { code: string; order: string; fullName: string; email: string; at: string };
-const KEY = 'amancay_arrepentimientos_v1';
 
 const field =
   'w-full rounded-lg border border-[var(--amancay-border)] bg-[var(--bg-page)] px-3 py-2.5 focus:border-[var(--brand-leather)]';
@@ -14,6 +14,8 @@ export function ArrepentimientoForm() {
   const [data, setData] = useState({ order: '', fullName: '', email: '', website: '' });
   const [errors, setErrors] = useState<Partial<Record<'order' | 'fullName' | 'email', string>>>({});
   const [done, setDone] = useState<Request | null>(null);
+  const [sending, setSending] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const startedAt = useRef(0);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -21,10 +23,12 @@ export function ArrepentimientoForm() {
     startedAt.current = Date.now();
   }, []);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (sending) return;
+    setSubmitError(null);
     const found: typeof errors = {};
-    if (data.order.trim().length < 4) found.order = 'Escribí el número de pedido, ej.: AMC-123456.';
+    if (data.order.trim().length < 4) found.order = 'Escribí el número de pedido, ej.: AMC-7K3QX9.';
     if (data.fullName.trim().length < 3) found.fullName = 'Escribí tu nombre y apellido.';
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim())) found.email = 'Escribí un email válido: ahí te llega el código.';
     setErrors(found);
@@ -36,20 +40,25 @@ export function ArrepentimientoForm() {
     // Antispam: campo trampa lleno o envío en menos de 2 segundos. No se avisa por qué.
     if (looksAutomated(data.website, startedAt.current)) return;
 
-    const request: Request = {
-      code: randomCode('ARR'),
+    setSending(true);
+    let result: Awaited<ReturnType<typeof submitWithdrawal>>;
+    try {
+      result = await submitWithdrawal({ ...data, elapsedMs: Date.now() - startedAt.current });
+    } catch {
+      result = { ok: false, error: 'No pudimos conectarnos. Probá de nuevo o escribinos por WhatsApp.' };
+    }
+    setSending(false);
+    if (!result.ok) {
+      setSubmitError(result.error);
+      return;
+    }
+    setDone({
+      code: result.code,
       order: data.order.trim().toUpperCase(),
       fullName: data.fullName.trim(),
       email: data.email.trim(),
-      at: new Date().toISOString(),
-    };
-    try {
-      const list = JSON.parse(window.localStorage.getItem(KEY) ?? '[]') as Request[];
-      window.localStorage.setItem(KEY, JSON.stringify([...list, request].slice(-100)));
-    } catch {
-      // sin almacenamiento: el código igual se muestra y se puede mandar por WhatsApp
-    }
-    setDone(request);
+      at: result.at,
+    });
   };
 
   if (done) {
@@ -62,8 +71,7 @@ export function ArrepentimientoForm() {
           devolución. Te escribimos a {done.email} para coordinarla.
         </p>
         <p className="text-sm text-[var(--ink-muted)]">
-          Versión de prueba: la tienda todavía no tiene servidor, así que el pedido queda en este navegador. Mandalo también por
-          WhatsApp para que llegue al local.
+          El pedido ya quedó registrado en el local. Si querés, mandá también el código por WhatsApp para agilizarlo.
         </p>
         <a
           href={whatsappUrl(text)}
@@ -111,11 +119,18 @@ export function ArrepentimientoForm() {
         <label htmlFor="arr-website">No completar</label>
         <input id="arr-website" name="website" tabIndex={-1} autoComplete="off" value={data.website} onChange={(e) => setData((d) => ({ ...d, website: e.target.value }))} />
       </div>
+      {submitError && (
+        <p role="alert" className="rounded-btn border border-[var(--amancay-wine)] bg-white p-3 text-sm font-semibold text-[var(--amancay-wine)]">
+          {submitError}
+        </p>
+      )}
       <button
         type="submit"
-        className="tap-interactive min-h-12 w-full rounded-btn bg-[var(--brand-leather)] font-semibold text-white hover:bg-[var(--brand-leather-hover)]"
+        disabled={sending}
+        aria-busy={sending}
+        className="tap-interactive min-h-12 w-full rounded-btn bg-[var(--brand-leather)] font-semibold text-white hover:bg-[var(--brand-leather-hover)] disabled:opacity-70"
       >
-        Pedir la revocación
+        {sending ? 'Enviando…' : 'Pedir la revocación'}
       </button>
       <p className="text-xs leading-relaxed text-[var(--ink-muted)]">
         Usamos estos datos solo para identificar la compra y responderte. Responsable: {STORE.legal.holder}.

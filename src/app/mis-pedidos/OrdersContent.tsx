@@ -1,16 +1,18 @@
 'use client';
 
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { Check, Copy, Info, Map as MapIcon, MapPin, MessageCircle, Package, Search, Store, Truck } from 'lucide-react';
 import type { Order, OrderStatus } from '@/lib/types';
 import { useStore } from '@/context/StoreContext';
 import { ProductImage } from '@/components/ProductImage';
 import { PAYMENT_LABELS, SHIPPING_LABELS, STORE, formatPrice, whatsappUrl, waText } from '@/lib/storeConfig';
+import { findMyOrder, getMyOrders } from './actions';
 
 /*
- * Mis pedidos (Figma: "Mis Pedidos"). Sin cuenta ni servidor: se listan los pedidos hechos desde
- * este navegador y se puede buscar uno por su código. La pantalla lo dice sin vueltas.
+ * Mis pedidos (Figma: "Mis Pedidos"). Sin cuenta: este navegador recuerda código + email de cada
+ * pedido que se hizo acá y el servidor devuelve su estado real. Desde otro dispositivo se busca
+ * con el código y el email de la compra.
  */
 
 const dateFormat = new Intl.DateTimeFormat('es-AR', {
@@ -29,6 +31,7 @@ const STEP_INDEX: Record<OrderStatus, number> = {
   listo_para_retirar: 2,
   despachado: 2,
   entregado: 3,
+  cancelado: 0,
 };
 
 function stepsFor(order: Order): { title: string; body: string }[] {
@@ -36,7 +39,16 @@ function stepsFor(order: Order): { title: string; body: string }[] {
   return [
     {
       title: 'Pedido recibido',
-      body: order.status === 'pendiente' ? 'Falta confirmar el pago.' : 'Pago confirmado.',
+      body:
+        order.status === 'cancelado'
+          ? 'Se canceló y los productos volvieron al catálogo.'
+          : order.paymentStatus === 'rechazado'
+            ? 'El pago no se aprobó: podés reintentar o escribirnos.'
+            : order.status === 'pendiente'
+              ? order.paymentMethod === 'mostrador'
+                ? 'Lo pagás al retirar.'
+                : 'Falta confirmar el pago.'
+              : 'Pago confirmado.',
     },
     { title: 'En preparación', body: 'Lo estamos separando y embalando.' },
     pickup
@@ -49,7 +61,10 @@ function stepsFor(order: Order): { title: string; body: string }[] {
 function statusLabel(order: Order): string {
   switch (order.status) {
     case 'pendiente':
-      return 'Esperando el pago';
+      if (order.paymentStatus === 'rechazado') return 'Pago rechazado';
+      return order.paymentMethod === 'mostrador' ? 'Pagás al retirar' : 'Esperando el pago';
+    case 'cancelado':
+      return 'Cancelado';
     case 'pagado':
       return 'Pago confirmado';
     case 'en_preparacion':
@@ -63,20 +78,60 @@ function statusLabel(order: Order): string {
   }
 }
 
-const normalizeCode = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-
 export function OrdersContent() {
-  const { myOrders, orders, isHydrated } = useStore();
+  const { myOrders: refs, isHydrated, rememberOrder } = useStore();
   const [code, setCode] = useState('');
-  const [searched, setSearched] = useState<string | null>(null);
+  const [email, setEmail] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [found, setFound] = useState<Order | null>(null);
   const [tab, setTab] = useState<'activos' | 'historial'>('activos');
+  const [myOrders, setMyOrders] = useState<Order[] | null>(null);
 
-  const active = myOrders.filter((o) => o.status !== 'entregado');
-  const history = myOrders.filter((o) => o.status === 'entregado');
+  // Cuando se leyó el navegador, se piden al servidor los pedidos hechos desde acá.
+  const refsKey = refs.map((r) => r.code).join(',');
+  useEffect(() => {
+    if (!isHydrated) return;
+    let cancelled = false;
+    getMyOrders(refs.map(({ code, email }) => ({ code, email })))
+      .then((list) => !cancelled && setMyOrders(list))
+      .catch(() => !cancelled && setMyOrders([]));
+    return () => {
+      cancelled = true;
+    };
+    // refsKey resume la lista: se vuelve a pedir solo si cambian los códigos.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHydrated, refsKey]);
+
+  const loaded = myOrders ?? [];
+  const finished = (o: Order) => o.status === 'entregado' || o.status === 'cancelado';
+  const active = loaded.filter((o) => !finished(o));
+  const history = loaded.filter(finished);
   const list = tab === 'activos' ? active : history;
 
-  // La búsqueda mira todos los pedidos guardados en este navegador (menos los de ejemplo del panel).
-  const found = searched ? orders.find((o) => !o.isSample && normalizeCode(o.orderNumber) === searched) : undefined;
+  const search = async () => {
+    setSearchError(null);
+    setFound(null);
+    if (!code.trim() || !email.trim()) {
+      setSearchError('Escribí el código del pedido y el email con el que compraste.');
+      return;
+    }
+    setSearching(true);
+    try {
+      const result = await findMyOrder(code, email);
+      if (result.ok) {
+        setFound(result.order);
+        // Queda recordado en este navegador para la próxima.
+        rememberOrder({ code: result.order.orderNumber, email: email.trim().toLowerCase(), createdAt: result.order.createdAt });
+      } else {
+        setSearchError(result.error);
+      }
+    } catch {
+      setSearchError('No pudimos consultar el pedido. Probá de nuevo en un momento.');
+    } finally {
+      setSearching(false);
+    }
+  };
 
   return (
     <div className="min-h-[70vh] bg-[var(--bg-page)] pb-16 pt-6 text-[var(--ink-primary)] sm:pt-10">
@@ -85,7 +140,8 @@ export function OrdersContent() {
           <p className="eyebrow eyebrow-rule">Seguimiento</p>
           <h1 className="mt-2 font-display text-[32px] leading-tight tracking-[-0.02em] sm:text-[40px]">Mis pedidos</h1>
           <p className="mt-2 max-w-2xl text-[var(--ink-muted)]">
-            Acá ves en qué paso está cada pedido que hiciste desde este navegador, y podés buscar uno por su código.
+            Acá ves en qué paso está cada pedido que hiciste desde este navegador. Si compraste desde otro dispositivo, buscalo con el código
+            y el email.
           </p>
         </header>
 
@@ -94,17 +150,17 @@ export function OrdersContent() {
           style={{ '--i': 1 } as CSSProperties}
           onSubmit={(e) => {
             e.preventDefault();
-            setSearched(normalizeCode(code) || null);
+            void search();
           }}
         >
           <label htmlFor="pedido-codigo" className="block font-semibold">
-            Buscar un pedido por código
+            Buscar un pedido
           </label>
           <p id="pedido-codigo-hint" className="mt-0.5 text-sm text-[var(--ink-muted)]">
-            Es el que te mostramos al confirmar la compra, por ejemplo AMC-123456.
+            Con el código que te mostramos al confirmar (por ejemplo AMC-7K3QX9) y el email de la compra.
           </p>
-          <div className="mt-3 flex gap-2">
-            <div className="relative min-w-0 flex-1">
+          <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+            <div className="relative min-w-0">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--ink-muted)]" aria-hidden="true" />
               <input
                 id="pedido-codigo"
@@ -113,23 +169,42 @@ export function OrdersContent() {
                 autoComplete="off"
                 autoCapitalize="characters"
                 spellCheck={false}
+                maxLength={20}
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 aria-describedby="pedido-codigo-hint"
-                placeholder="AMC-123456…"
+                placeholder="AMC-7K3QX9…"
                 className="field pl-9 uppercase tabular-nums placeholder:normal-case"
               />
             </div>
-            <button type="submit" className="btn btn-primary">
-              Buscar
+            <div className="min-w-0">
+              <label htmlFor="pedido-email" className="sr-only">
+                Email de la compra
+              </label>
+              <input
+                id="pedido-email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                spellCheck={false}
+                maxLength={120}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                aria-describedby="pedido-codigo-hint"
+                placeholder="Email de la compra…"
+                className="field"
+              />
+            </div>
+            <button type="submit" className="btn btn-primary" disabled={searching} aria-busy={searching}>
+              {searching ? 'Buscando…' : 'Buscar'}
             </button>
           </div>
           <div aria-live="polite">
-            {searched && !found && isHydrated && (
+            {searchError && (
               <p className="pop-in mt-3 flex items-start gap-2 rounded-btn bg-[var(--bg-subtle)] p-3 text-sm text-[var(--ink-secondary)]">
                 <Info className="mt-0.5 h-4 w-4 shrink-0 text-[var(--ink-gold)]" aria-hidden="true" />
                 <span>
-                  No encontramos ese código en este navegador. Si hiciste el pedido desde otro dispositivo,{' '}
+                  {searchError} Si no lo encontrás,{' '}
                   <a
                     href={whatsappUrl(`Hola Amancay, quiero consultar por el pedido ${waText(code)}.`)}
                     target="_blank"
@@ -172,13 +247,13 @@ export function OrdersContent() {
                     tab === id ? 'bg-[var(--ink-primary)] text-white' : 'text-[var(--ink-secondary)] hover:bg-[var(--chip-strong)]'
                   }`}
                 >
-                  {label} <span className="tabular-nums opacity-75">({isHydrated ? count : 0})</span>
+                  {label} <span className="tabular-nums opacity-75">({count})</span>
                 </button>
               ))}
             </div>
           </div>
 
-          {!isHydrated ? (
+          {!isHydrated || myOrders === null ? (
             <p className="mt-8 text-center text-[var(--ink-muted)]" role="status">
               Cargando tus pedidos…
             </p>
@@ -189,8 +264,8 @@ export function OrdersContent() {
               </span>
               <p className="mt-4 font-display text-xl">{tab === 'activos' ? 'No tenés pedidos en curso' : 'Todavía no hay pedidos entregados'}</p>
               <p className="mx-auto mt-1.5 max-w-md text-[15px] text-[var(--ink-muted)]">
-                Los pedidos se guardan en el navegador donde los hacés. Si compraste desde otro dispositivo, buscalo arriba por su código o
-                escribinos.
+                Acá aparecen los pedidos que hacés desde este navegador. Si compraste desde otro dispositivo, buscalo arriba con el código y el
+                email.
               </p>
               <Link href="/catalogo" className="btn btn-primary mt-5">
                 Ir al catálogo
@@ -379,7 +454,10 @@ function OrderCard({ order }: { order: Order }) {
               <>
                 <p className="mt-2 font-display text-xl">{SHIPPING_LABELS[order.shippingMethod]}</p>
                 <p className="mt-1 text-[15px] text-[var(--ink-muted)]">
-                  {order.customer.address}, {order.customer.city} (CP {order.customer.postalCode}). A nombre de {order.customer.fullName}.
+                  {order.shippingMethod === 'moto_caba'
+                    ? 'Coordinamos día y franja horaria por WhatsApp.'
+                    : 'Te mandamos el número de seguimiento de Correo Argentino cuando lo despachemos.'}{' '}
+                  A nombre de {order.customer.fullName}.
                 </p>
                 <a
                   href={whatsappUrl(`Hola Amancay, quiero consultar por el envío del pedido ${order.orderNumber}.`)}
@@ -403,8 +481,8 @@ function OrderCard({ order }: { order: Order }) {
               </span>
             </p>
             <ul className="mt-3 space-y-2">
-              {order.items.map((item) => (
-                <li key={`${item.productId}-${item.variantId ?? ''}`} className="flex items-center gap-3 rounded-btn bg-white p-2.5">
+              {order.items.map((item, index) => (
+                <li key={`${item.productId}-${item.variantId ?? ''}-${index}`} className="flex items-center gap-3 rounded-btn bg-white p-2.5">
                   <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-[var(--bg-sunken)]">
                     <ProductImage src={item.productImage} alt="" width={56} height={56} className="photo-on-linen h-full w-full object-contain p-1" />
                   </span>

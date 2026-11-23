@@ -5,10 +5,12 @@ import Link from 'next/link';
 import { Download, Upload, Plus, Undo2, LogOut, MapPin, Store, ClipboardList, Boxes, TriangleAlert } from 'lucide-react';
 import { logout } from './actions';
 import { MetricsTab } from './MetricsTab';
-import { useStore, applyPercentage, matchesMassFilter, type MassFilter, type CsvProductRow } from '@/context/StoreContext';
+import { applyPercentage, matchesMassFilter, type MassFilter, type CsvProductRow } from '@/lib/productUtils';
+import { useAdmin } from './AdminDataContext';
+import type { PriceSnapshot } from './dataActions';
 import { Dialog } from '@/components/Dialog';
 import type { OrderStatus, Product, ProductCategory } from '@/lib/types';
-import { PAYMENT_LABELS, SHIPPING_LABELS, STORE, formatPrice, normalizeText, safeImageUrl, slugify } from '@/lib/storeConfig';
+import { PAYMENT_LABELS, SHIPPING_LABELS, STORE, formatPrice, normalizeText, safeImageUrl } from '@/lib/storeConfig';
 import { useTodayHours } from '@/lib/useStoreHours';
 import { MAX_PRICE, headerIndex, parseArNumber, parseArsPrice, parseCsv, toCsv } from '@/lib/csv';
 import { CATEGORIES as RUBROS } from '@/lib/categories';
@@ -31,6 +33,7 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   listo_para_retirar: 'Listo para retirar',
   despachado: 'Despachado',
   entregado: 'Entregado',
+  cancelado: 'Cancelado (vuelve el stock)',
 };
 
 /** Umbral de "stock bajo" por línea (variante o producto simple). */
@@ -62,7 +65,7 @@ function lowStockLines(products: Product[]) {
 }
 
 export function AdminPanel() {
-  const { products, orders, isHydrated } = useStore();
+  const { products, orders, isHydrated } = useAdmin();
   const [activeTab, setActiveTab] = useState<Tab>('prices');
   const pendingOrders = orders.filter((o) => o.status === 'pendiente' || o.status === 'en_preparacion').length;
   const readyOrders = orders.filter((o) => o.status === 'listo_para_retirar').length;
@@ -95,7 +98,7 @@ export function AdminPanel() {
                 Panel del local{' '}
                 {isHydrated && <span className="font-sans text-base font-medium text-[var(--ink-muted)]">· {todayFormat.format(new Date())}</span>}
               </h1>
-              <p className="mt-1.5 text-[15px] text-[var(--ink-muted)]">Precios, stock y pedidos. Demo: los cambios se guardan solo en este navegador.</p>
+              <p className="mt-1.5 text-[15px] text-[var(--ink-muted)]">Precios, stock y pedidos. Los cambios se guardan en la base y se ven en la tienda al instante.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Link href="/" className="btn btn-quiet text-sm">
@@ -208,11 +211,12 @@ export function AdminPanel() {
 // ---------------- Precios ----------------
 
 function PricesTab({ products }: { products: Product[] }) {
-  const { applyMassPercentageIncrease, restoreProducts, importProductsFromCsvData } = useStore();
+  const { applyMassPercentageIncrease, restorePrices, importProductsFromCsvData } = useAdmin();
+  const [busy, setBusy] = useState(false);
   const [filterType, setFilterType] = useState<MassFilter>('category');
   const [filterValue, setFilterValue] = useState<string>('mates');
   const [percentage, setPercentage] = useState('10');
-  const [result, setResult] = useState<{ message: string; previous?: Product[] } | null>(null);
+  const [result, setResult] = useState<{ message: string; previous?: PriceSnapshot[]; error?: boolean } | null>(null);
   const [csvReport, setCsvReport] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -224,9 +228,13 @@ function PricesTab({ products }: { products: Product[] }) {
     [products, filterType, filterValue]
   );
 
-  const apply = () => {
-    if (!validPct || pct === null) return;
-    const { affectedCount, previous } = applyMassPercentageIncrease(filterType, filterValue, pct);
+  const apply = async () => {
+    if (!validPct || pct === null || busy) return;
+    setBusy(true);
+    const res = await applyMassPercentageIncrease(filterType, filterValue, pct);
+    setBusy(false);
+    if (!res.ok) return setResult({ message: res.error, error: true });
+    const { affectedCount, previous } = res.data;
     setResult({
       message: `Listo: ${affectedCount} ${affectedCount === 1 ? 'producto actualizado' : 'productos actualizados'} (${pct > 0 ? '+' : ''}${pct} %).`,
       previous,
@@ -308,11 +316,15 @@ function PricesTab({ products }: { products: Product[] }) {
           stock: stock ?? undefined,
         });
       });
-      const { updated, created } = importProductsFromCsvData(parsed);
-      const parts = [`${updated} actualizados`, `${created} nuevos`];
-      if (problems.length) parts.push(`${problems.length} filas salteadas (${problems.slice(0, 3).join('; ')}${problems.length > 3 ? '…' : ''})`);
-      setCsvReport(`Planilla importada: ${parts.join(', ')}.`);
       if (fileRef.current) fileRef.current.value = '';
+      setCsvReport('Importando la planilla…');
+      void importProductsFromCsvData(parsed).then((res) => {
+        if (!res.ok) return setCsvReport(res.error);
+        const { updated, created } = res.data;
+        const parts = [`${updated} actualizados`, `${created} nuevos`];
+        if (problems.length) parts.push(`${problems.length} filas salteadas (${problems.slice(0, 3).join('; ')}${problems.length > 3 ? '…' : ''})`);
+        setCsvReport(`Planilla importada: ${parts.join(', ')}.`);
+      });
     };
     reader.readAsText(file, 'utf-8');
   };
@@ -381,7 +393,7 @@ function PricesTab({ products }: { products: Product[] }) {
                 aria-describedby="mass-pct-hint"
                 className={`${field} tabular-nums`}
               />
-              <button type="button" onClick={apply} disabled={!validPct || preview.length === 0} className={primaryBtn}>
+              <button type="button" onClick={apply} disabled={!validPct || preview.length === 0 || busy} aria-busy={busy} className={primaryBtn}>
                 Aplicar
               </button>
             </div>
@@ -393,14 +405,18 @@ function PricesTab({ products }: { products: Product[] }) {
 
         <div role="status">
           {result && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[var(--amancay-emerald)] bg-[var(--bg-page)] p-3">
-              <p className="font-semibold text-[var(--amancay-emerald)]">{result.message}</p>
+            <div
+              className={`flex flex-wrap items-center justify-between gap-3 rounded-md border bg-[var(--bg-page)] p-3 ${
+                result.error ? 'border-[var(--amancay-wine)]' : 'border-[var(--amancay-emerald)]'
+              }`}
+            >
+              <p className={`font-semibold ${result.error ? 'text-[var(--amancay-wine)]' : 'text-[var(--amancay-emerald)]'}`}>{result.message}</p>
               {result.previous && (
                 <button
                   type="button"
-                  onClick={() => {
-                    restoreProducts(result.previous!);
-                    setResult({ message: 'Se deshizo el último aumento.' });
+                  onClick={async () => {
+                    const res = await restorePrices(result.previous!);
+                    setResult(res.ok ? { message: 'Se deshizo el último aumento.' } : { message: res.error, error: true });
                   }}
                   className={secondaryBtn}
                 >
@@ -476,7 +492,8 @@ function PricesTab({ products }: { products: Product[] }) {
 // ---------------- Productos ----------------
 
 function ProductsTab({ products }: { products: Product[] }) {
-  const { updateProduct, toggleProductActive } = useStore();
+  const { saveProduct, toggleProductActive } = useAdmin();
+  const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -500,7 +517,8 @@ function ProductsTab({ products }: { products: Product[] }) {
     );
   };
 
-  const saveEdit = (p: Product) => {
+  const saveEdit = async (p: Product) => {
+    if (saving) return;
     const price = parseArsPrice(editPrice);
     if (price === null) {
       setEditError(`El precio tiene que ser un número mayor a 0 y hasta ${formatPrice(MAX_PRICE)}.`);
@@ -511,11 +529,15 @@ function ProductsTab({ products }: { products: Product[] }) {
       setEditError('El stock tiene que ser un número entero, 0 o más.');
       return;
     }
-    if (p.variants?.length) {
-      updateProduct(p.id, { price, variants: p.variants.map((v) => ({ ...v, stock: stocks[v.id] ?? v.stock })) });
-    } else {
-      updateProduct(p.id, { price, stock: stocks._ ?? p.stock });
-    }
+    setSaving(true);
+    const res = p.variants?.length
+      ? await saveProduct(p.id, {
+          price,
+          variantStocks: Object.fromEntries(p.variants.map((v) => [v.id, stocks[v.id] ?? v.stock])),
+        })
+      : await saveProduct(p.id, { price, stock: stocks._ ?? p.stock });
+    setSaving(false);
+    if (!res.ok) return setEditError(res.error);
     setEditingId(null);
   };
 
@@ -675,8 +697,8 @@ function ProductsTab({ products }: { products: Product[] }) {
                           <button type="button" onClick={() => setEditingId(null)} className={secondaryBtn}>
                             Cancelar
                           </button>
-                          <button type="button" onClick={() => saveEdit(p)} className={primaryBtn}>
-                            Guardar
+                          <button type="button" onClick={() => saveEdit(p)} disabled={saving} aria-busy={saving} className={primaryBtn}>
+                            {saving ? 'Guardando…' : 'Guardar'}
                           </button>
                         </div>
                         {editError && (
@@ -704,13 +726,15 @@ function ProductsTab({ products }: { products: Product[] }) {
 }
 
 function NewProductDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { addProduct } = useStore();
+  const { addProduct } = useAdmin();
+  const [saving, setSaving] = useState(false);
   const ids = useId();
   const [data, setData] = useState({ name: '', category: 'mates' as ProductCategory, brand: '', description: '', price: '', stock: '', sku: '', imageUrl: '' });
   const [error, setError] = useState<string | null>(null);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
     const price = parseArsPrice(data.price);
     const stock = parseArNumber(data.stock || '0');
     if (data.name.trim().length < 3) return setError('Escribí el nombre del producto.');
@@ -718,19 +742,19 @@ function NewProductDialog({ open, onClose }: { open: boolean; onClose: () => voi
     if (stock === null || stock < 0 || !Number.isInteger(stock)) return setError('El stock tiene que ser un número entero, 0 o más.');
     const image = safeImageUrl(data.imageUrl);
     if (data.imageUrl.trim() && !image) return setError('La foto tiene que ser un link que empiece con https://.');
-    addProduct({
+    setSaving(true);
+    const res = await addProduct({
       name: data.name.trim(),
-      slug: slugify(data.name),
       category: data.category,
-      brand: data.brand.trim() || 'Amancay',
+      brand: data.brand.trim(),
       description: data.description.trim(),
       price,
       stock,
-      sku: data.sku.trim() || `SKU-${Date.now().toString().slice(-6)}`,
-      images: image ? [image] : [],
-      active: true,
-      isNew: true,
+      sku: data.sku.trim(),
+      imageUrl: image ?? '',
     });
+    setSaving(false);
+    if (!res.ok) return setError(res.error);
     setData({ name: '', category: 'mates', brand: '', description: '', price: '', stock: '', sku: '', imageUrl: '' });
     setError(null);
     onClose();
@@ -804,8 +828,8 @@ function NewProductDialog({ open, onClose }: { open: boolean; onClose: () => voi
           <button type="button" onClick={onClose} className={secondaryBtn}>
             Cancelar
           </button>
-          <button type="submit" className={primaryBtn}>
-            Publicar
+          <button type="submit" disabled={saving} aria-busy={saving} className={primaryBtn}>
+            {saving ? 'Publicando…' : 'Publicar'}
           </button>
         </div>
       </form>
@@ -815,12 +839,101 @@ function NewProductDialog({ open, onClose }: { open: boolean; onClose: () => voi
 
 // ---------------- Pedidos ----------------
 
+const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  pendiente: 'Sin cobrar',
+  aprobado: 'Cobrado',
+  rechazado: 'Rechazado',
+  reembolsado: 'Reembolsado',
+  reembolso_parcial: 'Reembolso parcial',
+  cancelado: 'Cancelado',
+  vencido: 'Vencido',
+};
+
+const WITHDRAWAL_LABELS = { recibido: 'Recibido', en_proceso: 'En proceso', reembolsado: 'Reembolsado', rechazado: 'Rechazado' } as const;
+
+function WithdrawalsList() {
+  const { withdrawals, setWithdrawalStatus } = useAdmin();
+  const open = withdrawals.filter((w) => w.status === 'recibido' || w.status === 'en_proceso');
+  if (withdrawals.length === 0) return null;
+  return (
+    <section aria-labelledby="arr-title" className={`${card} mb-6 space-y-3`}>
+      <div>
+        <h2 id="arr-title" className="font-display text-2xl">
+          Botón de arrepentimiento{' '}
+          <span className="font-sans text-base font-medium text-[var(--ink-muted)]">· {open.length} abiertos</span>
+        </h2>
+        <p className="text-sm text-[var(--ink-muted)]">
+          Tenés que responder y devolver el total. El código se tiene que mandar por email dentro de las 24 h.
+        </p>
+      </div>
+      <ul className="divide-y divide-[var(--bg-subtle)]">
+        {withdrawals.slice(0, 30).map((w) => (
+          <li key={w.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
+            <div>
+              <p className="font-semibold">
+                {w.code} · pedido {w.orderNumber}{' '}
+                {!w.orderId && <span className="tag tag-quiet">no coincide con un pedido</span>}
+              </p>
+              <p className="text-[var(--ink-muted)]">
+                {w.fullName} · {w.email} · {dateFormat.format(new Date(w.createdAt))}
+                {!w.emailSentAt && <span className="text-[var(--amancay-wine)]"> · email sin enviar</span>}
+              </p>
+            </div>
+            <label className="flex items-center gap-2">
+              <span className="sr-only">Estado del trámite {w.code}</span>
+              <select
+                value={w.status}
+                onChange={(e) => void setWithdrawalStatus(w.id, e.target.value as keyof typeof WITHDRAWAL_LABELS)}
+                className="rounded-md border border-[var(--amancay-border)] bg-white px-2 py-2 text-sm"
+              >
+                {(Object.keys(WITHDRAWAL_LABELS) as (keyof typeof WITHDRAWAL_LABELS)[]).map((k) => (
+                  <option key={k} value={k}>
+                    {WITHDRAWAL_LABELS[k]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function OrdersTab() {
-  const { orders, updateOrderStatus } = useStore();
+  return (
+    <>
+      <WithdrawalsList />
+      <OrdersTable />
+    </>
+  );
+}
+
+function OrdersTable() {
+  const { orders, updateOrderStatus, refundOrder } = useAdmin();
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ id: string; text: string; error?: boolean } | null>(null);
+
   if (orders.length === 0) return <p className={card}>Todavía no hay pedidos.</p>;
+
+  const changeStatus = async (id: string, status: OrderStatus) => {
+    setBusyId(id);
+    const res = await updateOrderStatus(id, status);
+    setBusyId(null);
+    setNotice(res.ok ? null : { id, text: res.error, error: true });
+  };
+
+  const refund = async (id: string, number: string) => {
+    if (!window.confirm(`¿Reembolsar el total del pedido ${number}? No se puede deshacer.`)) return;
+    setBusyId(id);
+    const res = await refundOrder(id);
+    setBusyId(null);
+    setNotice(res.ok ? { id, text: res.data.note } : { id, text: res.error, error: true });
+  };
+
   return (
     <div className="overflow-x-auto rounded-xl border border-[var(--amancay-border)] bg-white">
-      <table className="w-full min-w-[860px] text-left text-sm">
+      <table className="w-full min-w-[980px] text-left text-sm">
         <caption className="sr-only">Pedidos</caption>
         <thead className="bg-[var(--bg-subtle)]">
           <tr>
@@ -834,43 +947,89 @@ function OrdersTab() {
           </tr>
         </thead>
         <tbody className="divide-y divide-[var(--bg-subtle)]">
-          {orders.map((o) => (
-            <tr key={o.id}>
-              <td className="px-4 py-3 font-semibold">#{o.orderNumber}</td>
-              <td className="px-4 py-3 tabular-nums">{dateFormat.format(new Date(o.createdAt))}</td>
-              <td className="px-4 py-3">
-                {o.customer.fullName}
-                <span className="block text-xs text-[var(--ink-muted)]">{o.customer.phone}</span>
-                {o.consent?.length ? (
-                  <span className="mt-0.5 block text-xs text-[var(--brand-olive)]">
-                    Aceptó {o.consent.map((c) => `${c.doc} v${c.version}`).join(' y ')} · {dateFormat.format(new Date(o.consent[0].at))}
+          {orders.map((o) => {
+            const paid = o.paymentStatus === 'aprobado';
+            const busy = busyId === o.id;
+            return (
+              <tr key={o.id} className={o.status === 'cancelado' ? 'text-[var(--ink-muted)]' : undefined}>
+                <td className="px-4 py-3 font-semibold">
+                  {o.orderNumber}
+                  <span className="block text-xs font-normal text-[var(--ink-muted)]">
+                    {o.items.reduce((n, i) => n + i.quantity, 0)} u. · {o.items.map((i) => i.productName).join(', ').slice(0, 60)}
                   </span>
-                ) : (
-                  <span className="mt-0.5 block text-xs text-[var(--ink-muted)]">Sin registro de consentimiento</span>
-                )}
-              </td>
-              <td className="px-4 py-3">{SHIPPING_LABELS[o.shippingMethod]}</td>
-              <td className="px-4 py-3">{PAYMENT_LABELS[o.paymentMethod] ?? o.paymentMethod}</td>
-              <td className="px-4 py-3 text-right font-semibold tabular-nums">{formatPrice(o.total)}</td>
-              <td className="px-4 py-3">
-                <label htmlFor={`status-${o.id}`} className="sr-only">
-                  Estado del pedido {o.orderNumber}
-                </label>
-                <select
-                  id={`status-${o.id}`}
-                  value={o.status}
-                  onChange={(e) => updateOrderStatus(o.id, e.target.value as OrderStatus)}
-                  className="rounded-md border border-[var(--amancay-border)] bg-white px-2 py-2 text-sm text-[var(--ink-primary)]"
-                >
-                  {(Object.keys(STATUS_LABELS) as OrderStatus[]).map((s) => (
-                    <option key={s} value={s}>
-                      {STATUS_LABELS[s]}
-                    </option>
-                  ))}
-                </select>
-              </td>
-            </tr>
-          ))}
+                </td>
+                <td className="px-4 py-3 tabular-nums">{dateFormat.format(new Date(o.createdAt))}</td>
+                <td className="px-4 py-3">
+                  {o.customer.fullName}
+                  <span className="block text-xs text-[var(--ink-muted)]">
+                    {o.customer.phone} · {o.customer.email}
+                  </span>
+                  {o.consent?.length ? (
+                    <span className="mt-0.5 block text-xs text-[var(--brand-olive)]">
+                      Aceptó {o.consent.map((c) => `${c.doc} v${c.version}`).join(' y ')} · {dateFormat.format(new Date(o.consent[0].at))}
+                    </span>
+                  ) : (
+                    <span className="mt-0.5 block text-xs text-[var(--ink-muted)]">Sin registro de consentimiento</span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {SHIPPING_LABELS[o.shippingMethod]}
+                  {o.shippingMethod !== 'pickup' && o.customer.address && (
+                    <span className="block text-xs text-[var(--ink-muted)]">
+                      {o.customer.address}, {o.customer.city} ({o.customer.postalCode})
+                      {o.customer.dni ? ` · DNI ${o.customer.dni}` : ''}
+                    </span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {PAYMENT_LABELS[o.paymentMethod] ?? o.paymentMethod}
+                  <span className={`block text-xs ${paid ? 'text-[var(--brand-olive)]' : 'text-[var(--ink-muted)]'}`}>
+                    {PAYMENT_STATUS_LABELS[o.paymentStatus ?? 'pendiente']}
+                    {o.status === 'pendiente' && o.expiresAt && ` · vence ${dateFormat.format(new Date(o.expiresAt))}`}
+                  </span>
+                  {paid && o.status !== 'cancelado' && (
+                    <button
+                      type="button"
+                      onClick={() => refund(o.id, o.orderNumber)}
+                      disabled={busy}
+                      className="mt-1 text-xs font-semibold text-[var(--amancay-wine)] underline underline-offset-2"
+                    >
+                      Reembolsar<span className="sr-only"> el pedido {o.orderNumber}</span>
+                    </button>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-right font-semibold tabular-nums">{formatPrice(o.total)}</td>
+                <td className="px-4 py-3">
+                  <label htmlFor={`status-${o.id}`} className="sr-only">
+                    Estado del pedido {o.orderNumber}
+                  </label>
+                  <select
+                    id={`status-${o.id}`}
+                    value={o.status}
+                    disabled={busy || o.status === 'cancelado'}
+                    aria-busy={busy}
+                    onChange={(e) => {
+                      const next = e.target.value as OrderStatus;
+                      if (next === 'cancelado' && !window.confirm(`¿Cancelar el pedido ${o.orderNumber}? El stock vuelve al catálogo.`)) return;
+                      void changeStatus(o.id, next);
+                    }}
+                    className="rounded-md border border-[var(--amancay-border)] bg-white px-2 py-2 text-sm text-[var(--ink-primary)]"
+                  >
+                    {(Object.keys(STATUS_LABELS) as OrderStatus[]).map((st) => (
+                      <option key={st} value={st}>
+                        {STATUS_LABELS[st]}
+                      </option>
+                    ))}
+                  </select>
+                  {notice?.id === o.id && (
+                    <p role={notice.error ? 'alert' : 'status'} className={`mt-1 max-w-[220px] text-xs ${notice.error ? 'text-[var(--amancay-wine)]' : 'text-[var(--brand-olive)]'}`}>
+                      {notice.text}
+                    </p>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -880,6 +1039,6 @@ function OrdersTab() {
 // ---------------- Resumen ----------------
 
 function MetricsTabWithStock() {
-  const { products } = useStore();
+  const { products } = useAdmin();
   return <MetricsTab lowStock={lowStockLines(products)} lowStockThreshold={LOW_STOCK} />;
 }
